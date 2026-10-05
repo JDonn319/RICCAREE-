@@ -27,15 +27,14 @@ const LandscapeGuard: React.FC<{ isPortrait: boolean }> = ({ isPortrait }) => {
 };
 
 // ==========================================
-// 2. ЭКРАН ЗАГРУЗКИ (ГРУЗИТ ВСЕ ФОТО И КНОПКИ)
+// 2. ЭКРАН ЗАГРУЗКИ
 // ==========================================
 const LoadingScreen: React.FC<{ onLoaded: () => void; isPortrait: boolean }> = ({ onLoaded, isPortrait }) => {
   const [progress, setProgress] = useState(0);
 
   useEffect(() => {
-    if (isPortrait) return; // Строгая пауза в вертикали
+    if (isPortrait) return;
 
-    // Предзагрузка фона, логотипа и трёх новых кнопок
     const assets = [
       '/MainMenuBackground.png',
       '/RiccarLogo.png',
@@ -44,13 +43,9 @@ const LoadingScreen: React.FC<{ onLoaded: () => void; isPortrait: boolean }> = (
       '/chests.png'
     ];
 
-    let loadedCount = 0;
     assets.forEach((src) => {
       const img = new Image();
       img.src = src;
-      img.onload = img.onerror = () => {
-        loadedCount++;
-      };
     });
 
     const timer = setInterval(() => {
@@ -97,7 +92,7 @@ const LoadingScreen: React.FC<{ onLoaded: () => void; isPortrait: boolean }> = (
 };
 
 // ==========================================
-// 3. PNG КНОПКА С МЯГКОЙ ПОДСВЕТКОЙ ПРИ НАЖАТИИ
+// 3. PNG КНОПКА (БЕЗ РАМОК, КВАДРАТОВ И ТЕНЕЙ)
 // ==========================================
 const PngButton: React.FC<{ src: string; alt: string }> = ({ src, alt }) => {
   const [pressed, setPressed] = useState(false);
@@ -107,13 +102,12 @@ const PngButton: React.FC<{ src: string; alt: string }> = ({ src, alt }) => {
       onPointerDown={() => setPressed(true)}
       onPointerUp={() => setPressed(false)}
       onPointerLeave={() => setPressed(false)}
+      onPointerCancel={() => setPressed(false)}
       style={{
         ...styles.pngBtnWrap,
         transform: pressed ? 'scale(0.96) translateY(2px)' : 'scale(1)',
-        // Эффект подсветки при нажатии (яркость + мягкое свечение)
-        filter: pressed 
-          ? 'brightness(1.35) drop-shadow(0 0 10px rgba(255, 230, 200, 0.75)) drop-shadow(0 4px 6px rgba(0,0,0,0.5))' 
-          : 'brightness(1) drop-shadow(0 4px 8px rgba(0,0,0,0.45))'
+        // Только чистая яркость без теней и свечений вокруг
+        filter: pressed ? 'brightness(1.2)' : 'none'
       }}
     >
       <img src={src} alt={alt} style={styles.pngBtnImg} draggable={false} />
@@ -122,19 +116,19 @@ const PngButton: React.FC<{ src: string; alt: string }> = ({ src, alt }) => {
 };
 
 // ==========================================
-// 4. ГЛАВНОЕ МЕНЮ (ЦЕНТРОВКА + PNG КНОПКИ)
+// 4. ГЛАВНОЕ МЕНЮ (ЧИСТАЯ 2D ГРАФИКА)
 // ==========================================
 const MainMenu: React.FC = () => {
   return (
     <div style={styles.menuContainer}>
       <img src="/MainMenuBackground.png" alt="BG" style={styles.menuBg} draggable={false} />
       
-      {/* 1. БОЛЬШОЙ ЛОГОТИП В НЕБЕ */}
+      {/* 1. ЕЩЁ БОЛЕЕ ОГРОМНЫЙ ЛОГОТИП */}
       <div style={styles.logoAnchor}>
         <img src="/RiccarLogo.png" alt="RICAREE" style={styles.hugeMenuLogo} draggable={false} />
       </div>
 
-      {/* 2. ТРИ КНОПКИ РОВНО В ЦЕНТРЕ ЭКРАНА */}
+      {/* 2. КНОПКИ В ЦЕНТРЕ */}
       <div style={styles.centeredButtonCluster}>
         <PngButton src="/play.png" alt="PLAY" />
         <PngButton src="/shop.png" alt="SHOP" />
@@ -169,7 +163,21 @@ const App: React.FC = () => {
 
   return (
     <main style={styles.root}>
+      {/* Жесткое отключение мобильных рамок нажатия и контуров фокуса */}
       <style>{`
+        * {
+          -webkit-tap-highlight-color: transparent !important;
+          -webkit-touch-callout: none !important;
+          outline: none !important;
+          user-select: none !important;
+          -webkit-user-select: none !important;
+        }
+        button, button:focus, button:active, button:focus-visible {
+          outline: none !important;
+          border: none !important;
+          box-shadow: none !important;
+          background: transparent;
+        }
         @keyframes phoneRotateAnim {
           0% { transform: rotate(0deg); }
           30% { transform: rotate(-90deg); }
@@ -196,7 +204,7 @@ const App: React.FC = () => {
 };
 
 // ==========================================
-// СТИЛИ
+// СТИЛИ (ПОЛНЫЙ НОЛЬ ТЕНЕЙ И СВЕЧЕНИЙ)
 // ==========================================
 const styles: Record<string, React.CSSProperties> = {
   root: {
@@ -226,8 +234,7 @@ const styles: Record<string, React.CSSProperties> = {
     gap: '12px'
   },
   guardIconWrap: {
-    animation: 'phoneRotateAnim 2.5s ease-in-out infinite',
-    filter: 'drop-shadow(0 0 14px rgba(255,255,255,0.35))'
+    animation: 'phoneRotateAnim 2.5s ease-in-out infinite'
   },
   guardTitle: {
     margin: 0,
@@ -275,16 +282,14 @@ const styles: Record<string, React.CSSProperties> = {
     width: '100%',
     height: '100%',
     objectFit: 'contain',
-    opacity: 0.15,
-    filter: 'grayscale(70%)'
+    opacity: 0.15
   },
   giantLogoActive: {
     position: 'absolute',
     inset: 0,
     width: '100%',
     height: '100%',
-    objectFit: 'contain',
-    filter: 'drop-shadow(0 0 24px rgba(220, 30, 30, 0.5))'
+    objectFit: 'contain'
   },
   slimProgressBox: {
     display: 'flex',
@@ -306,7 +311,6 @@ const styles: Record<string, React.CSSProperties> = {
     height: '100%',
     borderRadius: '10px',
     background: 'linear-gradient(180deg, #f04e3e 0%, #a81a15 100%)',
-    boxShadow: '0 0 6px rgba(240, 78, 62, 0.7)',
     transition: 'width 0.08s linear'
   },
   slimProgressText: {
@@ -333,9 +337,10 @@ const styles: Record<string, React.CSSProperties> = {
     objectFit: 'cover',
     pointerEvents: 'none'
   },
+  // ЕЩЁ БОЛЕЕ ОГРОМНЫЙ ЛОГОТИП
   logoAnchor: {
     position: 'absolute',
-    top: '2%',
+    top: '0%',
     left: '50%',
     transform: 'translateX(-50%)',
     width: '100%',
@@ -345,16 +350,15 @@ const styles: Record<string, React.CSSProperties> = {
     zIndex: 10
   },
   hugeMenuLogo: {
-    height: '46vh',
-    maxHeight: '210px',
-    maxWidth: '70vw',
-    objectFit: 'contain',
-    filter: 'drop-shadow(0 8px 16px rgba(0,0,0,0.55))'
+    height: '56vh',
+    maxHeight: '280px',
+    maxWidth: '85vw',
+    objectFit: 'contain'
   },
   // КНОПКИ В ЦЕНТРЕ
   centeredButtonCluster: {
     position: 'absolute',
-    top: '58%',
+    top: '60%',
     left: '50%',
     transform: 'translate(-50%, -50%)',
     display: 'flex',
@@ -363,12 +367,13 @@ const styles: Record<string, React.CSSProperties> = {
     alignItems: 'center',
     zIndex: 20
   },
-  // PNG Кнопка без рамок и фона
+  // PNG Кнопка без рамок, теней и подсветки
   pngBtnWrap: {
     background: 'transparent',
     border: 'none',
     outline: 'none',
     padding: 0,
+    margin: 0,
     cursor: 'pointer',
     display: 'flex',
     alignItems: 'center',
@@ -376,15 +381,16 @@ const styles: Record<string, React.CSSProperties> = {
     touchAction: 'manipulation',
     userSelect: 'none',
     WebkitTapHighlightColor: 'transparent',
-    transition: 'transform 0.07s ease-out, filter 0.07s ease-out'
+    transition: 'transform 0.06s ease-out, filter 0.06s ease-out'
   },
   pngBtnImg: {
-    height: '44px',
-    maxHeight: '10.5vh',
+    height: '42px',
+    maxHeight: '10vh',
     width: 'auto',
-    maxWidth: '32vw',
+    maxWidth: '30vw',
     objectFit: 'contain',
-    pointerEvents: 'none'
+    pointerEvents: 'none',
+    userSelect: 'none'
   }
 };
 
