@@ -1,11 +1,10 @@
 import React, { useEffect, useRef } from 'react';
 import * as THREE from 'three';
 
-const BLOCK_SIZE = 30; // Оптимальный размер: 1 блок = 30px
+const BLOCK_SIZE = 30; // 1 блок = 30px
 const WORLD_WIDTH = 3000; // Протяженность поля битвы
 const GROUND_ROWS = 8; // 1 слой грязи + 7 слоев травы
 const GROUND_BOTTOM_Y = 20; // Нижняя граница грунта над краем экрана
-const SURFACE_Y = GROUND_BOTTOM_Y + (GROUND_ROWS - 1) * BLOCK_SIZE; // Уровень поверхности
 
 export const GameStage: React.FC = () => {
   const mountRef = useRef<HTMLDivElement>(null);
@@ -33,12 +32,12 @@ export const GameStage: React.FC = () => {
     );
     camera.position.z = 20;
 
-    // Камера отцентрирована по вертикали: видно и самый нижний блок грязи, и крыши башен
+    // Камера отцентрирована по вертикали
     camera.position.y = viewHeight / 2;
     const initialCamX = 750; // Старт у нашей башни справа
     camera.position.x = initialCamX;
 
-    // 3. Рендерер с правильной цветопередачей (текстуры не будут белесыми)
+    // 3. Рендерер с правильной цветопередачей
     const renderer = new THREE.WebGLRenderer({ antialias: false, powerPreference: 'high-performance' });
     renderer.setSize(window.innerWidth, window.innerHeight);
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
@@ -95,7 +94,7 @@ export const GameStage: React.FC = () => {
       const mat = new THREE.MeshBasicMaterial({
         map: fallbackTex,
         transparent: true,
-        alphaTest: 0.1 // Прозрачность без черных артефактов
+        alphaTest: 0.1
       });
 
       const tryLoad = (idx: number) => {
@@ -127,7 +126,6 @@ export const GameStage: React.FC = () => {
       `/${name}.png`
     ];
 
-    // Глубокая темная палитра, как на арте
     const mats = {
       grass: createBlockMat(getPaths('grass'), '#335828', '#1a3314'),
       dirt: createBlockMat([...getPaths('dirt'), ...getPaths('girt')], '#382214', '#1f120a'),
@@ -142,7 +140,7 @@ export const GameStage: React.FC = () => {
       ore2: createBlockMat(getPaths('ore2'), '#383c44', '#1a1c20', 'gold')
     };
 
-    // Микроперекрытие +0.4px навсегда убирает зазоры и щели между блоками
+    // Микроперекрытие +0.4px убирает зазоры и щели
     const blockGeo = new THREE.PlaneGeometry(BLOCK_SIZE + 0.4, BLOCK_SIZE + 0.4);
 
     const addBlock = (col: number, row: number, mat: THREE.Material, z = 0) => {
@@ -174,7 +172,7 @@ export const GameStage: React.FC = () => {
       // 1. Самый нижний слой — грязь
       addBlock(c, bottomRow, mats.dirt, 0);
 
-      // 2. Следующие 7 слоев — трава (на ней можно строить)
+      // 2. Следующие 7 слоев — трава
       for (let g = 1; g < GROUND_ROWS; g++) {
         addBlock(c, bottomRow + g, mats.grass, 0);
       }
@@ -185,7 +183,7 @@ export const GameStage: React.FC = () => {
     // ==========================================
     const towerBaseRow = bottomRow + 3; // Ровно 3 линии блоков снизу
     const surfaceRow = bottomRow + GROUND_ROWS - 1;
-    const TOWER_W = 5;  // Компактная башенка (5 блоков шириной)
+    const TOWER_W = 5;  // 5 блоков шириной
     const TOWER_H = 15; // Высота башни
 
     const buildTower = (startCol: number, isPlayer: boolean) => {
@@ -196,17 +194,17 @@ export const GameStage: React.FC = () => {
           const curCol = startCol + c;
           const isOuter = c === 0 || c === TOWER_W - 1;
           const isTop = r === TOWER_H - 1;
-          const isCrenel = isTop && (c === 0 || c === 2 || c === 4); // Зубцы башни
+          const isCrenel = isTop && (c === 0 || c === 2 || c === 4);
           const isUnderground = curRow <= surfaceRow;
 
           if (isCrenel) {
             addBlock(curCol, curRow, isPlayer ? mats.stone1 : mats.stone2, 2);
           } else if (isTop) {
-            continue; // Проем зубцов
+            continue;
           } else if (isOuter || isUnderground) {
             addBlock(curCol, curRow, Math.random() > 0.4 ? mats.stone1 : mats.stone2, 1);
           } else {
-            // Внутренности башни (stone3 опоры + planks дерево)
+            // Внутренности башни
             if (c === 1 || c === 3) {
               addBlock(curCol, curRow, mats.stone3, 0);
             } else {
@@ -216,11 +214,11 @@ export const GameStage: React.FC = () => {
         }
       }
 
-      // Трон внутри башни (строго из блоков!)
+      // Трон внутри башни (строго из блоков)
       const centerCol = startCol + 2;
       const floorRow = surfaceRow + 1;
-      addBlock(centerCol, floorRow, mats.planks1, 2); // Сиденье
-      addBlock(centerCol, floorRow + 1, mats.stone1, 2); // Спинка
+      addBlock(centerCol, floorRow, mats.planks1, 2);
+      addBlock(centerCol, floorRow + 1, mats.stone1, 2);
     };
 
     // Наша башня справа, вражеская слева
@@ -263,7 +261,7 @@ export const GameStage: React.FC = () => {
       const topR = treeBaseRow + trunkHeight;
       for (let dc = -2; dc <= 2; dc++) {
         for (let dr = 0; dr <= 2; dr++) {
-          if (Math.abs(dc) === 2 && dr === 2) continue; // скругление
+          if (Math.abs(dc) === 2 && dr === 2) continue;
           addBlock(rootCol + dc, topR + dr, mats.leaf, 2);
         }
       }
