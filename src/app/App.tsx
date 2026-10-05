@@ -25,13 +25,34 @@ const LandscapeGuard: React.FC<{ isPortrait: boolean }> = ({ isPortrait }) => {
 };
 
 // ==========================================
-// 2. ЭКРАН ЗАГРУЗКИ (ТОЛЬКО В ГОРИЗОНТАЛИ)
+// 2. ЭКРАН ЗАГРУЗКИ (ПРЕДЗАГРУЗКА ВСЕХ КАРТИНОК)
 // ==========================================
 const LoadingScreen: React.FC<{ onLoaded: () => void; isPortrait: boolean }> = ({ onLoaded, isPortrait }) => {
   const [progress, setProgress] = useState(0);
 
   useEffect(() => {
     if (isPortrait) return;
+
+    // Кешируем меню, фоны панорамы и башни
+    const assets = [
+      '/MainMenuBackground.png',
+      '/RiccarLogo.png',
+      '/play.png',
+      '/shop.png',
+      '/chests.png',
+      '/solo.png',
+      '/duo.png',
+      '/backpart1.png',
+      '/backpart2.png',
+      '/backpart3.png',
+      '/tower.png',
+      '/etower1.png'
+    ];
+
+    assets.forEach((src) => {
+      const img = new Image();
+      img.src = src;
+    });
 
     const timer = setInterval(() => {
       setProgress((prev) => {
@@ -97,7 +118,7 @@ const MenuButton: React.FC<{ src: string; alt: string; onClick?: () => void }> =
 };
 
 // ==========================================
-// 4. СТВОРКА РЕЖИМА НА ВЕСЬ ЭКРАН (50/50)
+// 4. СТВОРКА РЕЖИМА НА ВЕСЬ ЭКРАН
 // ==========================================
 const FullscreenModeHalf: React.FC<{
   side: 'left' | 'right';
@@ -208,7 +229,7 @@ const App: React.FC = () => {
     };
   }, []);
 
-  // Переход при клике на SOLO: затемнение -> лоадер -> растемнение -> игра
+  // Переход при нажатии на SOLO
   const handleStartSolo = () => {
     setIsFadingToBlack(true);
     setTimeout(() => {
@@ -265,7 +286,7 @@ const App: React.FC = () => {
         </div>
       )}
 
-      {/* Черный экран для плавного затемнения */}
+      {/* Оверлей плавного перехода */}
       <div 
         style={{
           ...styles.fadeCurtain,
