@@ -21,7 +21,7 @@ interface Unit {
 
 export const GameStage: React.FC = () => {
   const mountRef = useRef<HTMLDivElement>(null);
-  const [gold, setGold] = useState(100);
+  const [gold] = useState(100);
   const spawnWarriorRef = useRef<() => void>(() => {});
 
   useEffect(() => {
@@ -192,7 +192,7 @@ export const GameStage: React.FC = () => {
       if (pivotY === 'top') {
         geo.translate(0, -h / 2, 0); // Вращение вокруг верхнего сустава (плечо, бедро)
       } else if (pivotY === 'bottom') {
-        geo.translate(0, h / 2, 0); // Вращение вокруг нижнего сустава
+        geo.translate(0, h / 2, 0);
       }
       return new THREE.Mesh(geo, mat);
     };
@@ -202,12 +202,12 @@ export const GameStage: React.FC = () => {
     // ==========================================
     const units: Unit[] = [];
     const WARRIOR_HEIGHT = 65; // ~2 блока
-    const characterFloorY = -viewHeight / 2 + 50; // Линия земли под ногами
+    const characterFloorY = -viewHeight / 2 + 50; // Линия земли
 
     const createWarrior = (spawnX: number) => {
       const root = new THREE.Group();
       root.position.set(spawnX, characterFloorY, 5);
-      root.scale.set(-1, 1, 1); // Повернут лицом влево — на врага
+      root.scale.set(-1, 1, 1); // Лицом влево на врага
 
       // 1. Тело (центр)
       const torsoH = WARRIOR_HEIGHT * 0.42;
@@ -263,7 +263,7 @@ export const GameStage: React.FC = () => {
       const swordW = swordH * 0.32;
       const sword = createPivotMesh(swordW, swordH, warriorMats.sword, 'bottom');
       sword.position.set(armW * 0.3, -armH * 0.85, 0.01);
-      sword.rotation.z = -Math.PI / 4; // Боевой наклон клинка
+      sword.rotation.z = -Math.PI / 4;
       frontArmPivot.add(sword);
 
       torso.add(frontArmPivot);
@@ -285,9 +285,8 @@ export const GameStage: React.FC = () => {
       });
     };
 
-    // Привязываем спавн к кнопке HUD
     spawnWarriorRef.current = () => {
-      createWarrior(WORLD_TOTAL_WIDTH / 2 - 120); // Рождается у нашей башни
+      createWarrior(WORLD_TOTAL_WIDTH / 2 - 120);
     };
 
     // ==========================================
@@ -309,7 +308,6 @@ export const GameStage: React.FC = () => {
     const clamp = (val: number, min: number, max: number) => Math.max(min, Math.min(max, val));
 
     const onPointerDown = (e: PointerEvent) => {
-      // Игнорируем нажатия на кнопки меню призыва
       if ((e.target as HTMLElement).closest('.hud-element')) return;
       isDragging = true;
       startPointerX = e.clientX;
@@ -360,32 +358,22 @@ export const GameStage: React.FC = () => {
       const delta = (now - lastTime) / 1000;
       lastTime = now;
 
-      // Плавная камера
       camera.position.x += (targetX - camera.position.x) * 0.12;
 
-      // Движение и скелетная анимация воинов
       for (let i = 0; i < units.length; i++) {
         const u = units[i];
-
-        // Движение вперед на врага (влево)
         u.group.position.x -= u.speed;
 
-        // Таймер походки
         u.walkTimer += delta * 7.5;
         const swing = Math.sin(u.walkTimer);
 
-        // Размах ног (противофаза)
         u.parts.frontLeg.rotation.z = swing * 0.55;
         u.parts.backLeg.rotation.z = -swing * 0.55;
 
-        // Размах рук (противоположно ногам)
         u.parts.frontArm.rotation.z = -swing * 0.45;
         u.parts.backArm.rotation.z = swing * 0.45;
 
-        // Легкое подпрыгивание тела при шаге
         u.parts.torso.position.y = WARRIOR_HEIGHT * 0.45 + Math.abs(swing) * 2;
-
-        // Покачивание головы и меча
         u.parts.head.rotation.z = Math.sin(u.walkTimer * 0.5) * 0.08;
         u.parts.sword.rotation.z = -Math.PI / 4 + swing * 0.12;
       }
@@ -412,19 +400,14 @@ export const GameStage: React.FC = () => {
     <div style={styles.stageContainer}>
       <div ref={mountRef} style={{ width: '100%', height: '100%', touchAction: 'none' }} />
 
-      {/* ==========================================
-          ИНТЕРФЕЙС ПРИЗЫВА ЮНИТОВ (STICK WAR STYLE)
-          ========================================== */}
+      {/* Интерфейс призыва */}
       <div style={styles.hudOverlay}>
-        {/* Счетчик золота */}
         <div className="hud-element" style={styles.goldCounter}>
           <span style={styles.coinIcon}>🪙</span>
           <span style={styles.goldAmount}>{gold}</span>
         </div>
 
-        {/* 3 карточки призыва в ряд */}
         <div style={styles.summonRow}>
-          {/* 1. WARRIOR (АКТИВЕН, 0 МОНЕТ) */}
           <button
             className="hud-element"
             onClick={() => spawnWarriorRef.current()}
@@ -435,14 +418,12 @@ export const GameStage: React.FC = () => {
             <span style={styles.unitCost}>0 🪙</span>
           </button>
 
-          {/* 2. ARCHER (ЗАГЛУШКА) */}
           <button className="hud-element" style={{ ...styles.unitCard, ...styles.unitDisabled }}>
             <div style={styles.unitAvatar}>🏹</div>
             <span style={styles.unitName}>ARCHER</span>
             <span style={styles.unitCost}>0 🪙</span>
           </button>
 
-          {/* 3. KNIGHT (ЗАГЛУШКА) */}
           <button className="hud-element" style={{ ...styles.unitCard, ...styles.unitDisabled }}>
             <div style={styles.unitAvatar}>🛡️</div>
             <span style={styles.unitName}>KNIGHT</span>
@@ -464,7 +445,7 @@ const styles: Record<string, React.CSSProperties> = {
   hudOverlay: {
     position: 'absolute',
     top: '14px',
-    left: '110px', // Отступ от кнопки MENU
+    left: '110px',
     zIndex: 100,
     display: 'flex',
     alignItems: 'center',
