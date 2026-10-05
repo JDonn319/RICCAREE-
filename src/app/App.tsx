@@ -2,6 +2,12 @@ import React, { useState, useEffect } from 'react';
 import { Smartphone } from 'lucide-react';
 import { GameStage } from '../game/GameStage';
 
+// Определение ориентации строго синхронно, чтобы не стартовать в фоне
+const checkPortraitSync = () => {
+  if (typeof window === 'undefined') return false;
+  return window.innerHeight > window.innerWidth;
+};
+
 // ==========================================
 // 1. БЛОКИРОВЩИК ПОВОРОТА ЭКРАНА (iOS GUARD)
 // ==========================================
@@ -12,35 +18,35 @@ const LandscapeGuard: React.FC<{ isPortrait: boolean }> = ({ isPortrait }) => {
     <div style={styles.guardOverlay}>
       <div style={styles.guardCard}>
         <div style={styles.guardIconWrap}>
-          <Smartphone size={68} color="#ffffff" strokeWidth={1.8} />
+          <Smartphone size={56} color="#ffffff" strokeWidth={1.8} />
         </div>
         <h2 style={styles.guardTitle}>RICAREE!</h2>
-        <p style={styles.guardDesc}>Пожалуйста, переверните устройство горизонтально</p>
+        <p style={styles.guardDesc}>Переверните устройство горизонтально</p>
       </div>
     </div>
   );
 };
 
 // ==========================================
-// 2. ЭКРАН ЗАГРУЗКИ (КРУПНЫЙ, ПАУЗА В ВЕРТИКАЛИ)
+// 2. ЭКРАН ЗАГРУЗКИ (ОГРОМНОЕ ЛОГО + ТОНКАЯ ПОЛОСКА)
 // ==========================================
 const LoadingScreen: React.FC<{ onLoaded: () => void; isPortrait: boolean }> = ({ onLoaded, isPortrait }) => {
   const [progress, setProgress] = useState(0);
 
   useEffect(() => {
-    // Если экран вертикальный — загрузка стоит на паузе!
+    // НАМЕРТВО БЛОКИРУЕМ ЗАГРУЗКУ В ВЕРТИКАЛИ:
     if (isPortrait) return;
 
     const timer = setInterval(() => {
       setProgress((prev) => {
         if (prev >= 100) {
           clearInterval(timer);
-          setTimeout(onLoaded, 350);
+          setTimeout(onLoaded, 300);
           return 100;
         }
-        return prev + 2;
+        return prev + 1; // плавный ход полоски
       });
-    }, 25);
+    }, 18);
 
     return () => clearInterval(timer);
   }, [isPortrait, onLoaded]);
@@ -48,28 +54,26 @@ const LoadingScreen: React.FC<{ onLoaded: () => void; isPortrait: boolean }> = (
   return (
     <div style={styles.loadingContainer}>
       <div style={styles.loadingCenter}>
-        {/* Крупное лого с наполнением снизу вверх */}
-        <div style={styles.bigLogoBox}>
-          <img src="/RiccarLogo.png" alt="Logo" style={styles.bigLogoBase} draggable={false} />
+        {/* ОГРОМНОЕ ЛОГО ПОЧТИ ВО ВЕСЬ ЭКРАН */}
+        <div style={styles.hugeLogoBox}>
+          <img src="/RiccarLogo.png" alt="Logo" style={styles.hugeLogoBase} draggable={false} />
           <img 
             src="/RiccarLogo.png" 
             alt="Logo Fill" 
             style={{
-              ...styles.bigLogoActive,
+              ...styles.hugeLogoActive,
               clipPath: `inset(${100 - progress}% 0 0 0)`
             }} 
             draggable={false} 
           />
         </div>
 
-        {/* Большой мармеладный прогресс-бар */}
-        <div style={styles.progressWrap}>
-          <div style={styles.progressTrack}>
-            <div style={{ ...styles.progressFill, width: `${progress}%` }} />
+        {/* МАЛЕНЬКАЯ АККУРАТНАЯ ПОЛОСКА СНИЗУ */}
+        <div style={styles.smallProgressWrap}>
+          <div style={styles.smallProgressTrack}>
+            <div style={{ ...styles.smallProgressFill, width: `${progress}%` }} />
           </div>
-          <span style={styles.progressText}>
-            {isPortrait ? 'ОЖИДАНИЕ ПОВОРОТА...' : `ЗАГРУЗКА ${progress}%`}
-          </span>
+          <span style={styles.smallProgressText}>{progress}%</span>
         </div>
       </div>
     </div>
@@ -77,7 +81,7 @@ const LoadingScreen: React.FC<{ onLoaded: () => void; isPortrait: boolean }> = (
 };
 
 // ==========================================
-// 3. ГЛАВНОЕ МЕНЮ (БОЛЬШОЕ ЛОГО + НАДУТЫЕ КНОПКИ)
+// 3. ГЛАВНОЕ МЕНЮ (1 В 1 ПО РЕФЕРЕНСУ)
 // ==========================================
 const MainMenu: React.FC = () => {
   return (
@@ -85,12 +89,12 @@ const MainMenu: React.FC = () => {
       <img src="/MainMenuBackground.png" alt="BG" style={styles.menuBg} draggable={false} />
       
       <div style={styles.menuCenter}>
-        {/* Массивное сочное лого */}
+        {/* БОЛЬШОЙ ЛОГОТИП В НЕБЕ МЕЖДУ ЗАМКАМИ */}
         <div style={styles.menuLogoWrapper}>
           <img src="/RiccarLogo.png" alt="RICAREE" style={styles.menuBigLogo} draggable={false} />
         </div>
 
-        {/* Надутые мармеладные кнопки */}
+        {/* АККУРАТНЫЕ КОМПАКТНЫЕ МАРМЕЛАДНЫЕ КНОПКИ */}
         <div style={styles.btnColumn}>
           <MarmaladeBtn text="ИГРАТЬ" />
           <MarmaladeBtn text="МАГАЗИН" />
@@ -101,7 +105,7 @@ const MainMenu: React.FC = () => {
   );
 };
 
-// Надутая кнопка с бликом и комиксным стилем
+// Компактная мармеладная капсула по референсу
 const MarmaladeBtn: React.FC<{ text: string }> = ({ text }) => {
   const [pressed, setPressed] = useState(false);
 
@@ -112,14 +116,13 @@ const MarmaladeBtn: React.FC<{ text: string }> = ({ text }) => {
       onPointerLeave={() => setPressed(false)}
       style={{
         ...styles.puffyBtn,
-        transform: pressed ? 'translateY(3px) scale(0.97)' : 'translateY(0) scale(1)',
-        // Эффект вдавленной подушечки при клике
+        transform: pressed ? 'translateY(2px) scale(0.96)' : 'translateY(0) scale(1)',
         boxShadow: pressed
-          ? '0 2px 0 #280405, inset 0 3px 6px rgba(0,0,0,0.6)'
-          : '0 6px 0 #2d0506, 0 10px 16px rgba(0,0,0,0.55), inset 0 3px 4px rgba(255,255,255,0.45)'
+          ? '0 2px 0 #200405, inset 0 2px 4px rgba(0,0,0,0.7)'
+          : '0 4px 0 #200405, 0 6px 10px rgba(0,0,0,0.5), inset 0 1px 2px rgba(255,255,255,0.45)'
       }}
     >
-      {/* Верхний мармеладный блик */}
+      {/* Тонкий стеклянный блик надутой кнопки */}
       <div style={styles.btnHighlight} />
       <span style={styles.puffyBtnText}>{text}</span>
     </button>
@@ -127,28 +130,32 @@ const MarmaladeBtn: React.FC<{ text: string }> = ({ text }) => {
 };
 
 // ==========================================
-// 4. КОРНЕВОЙ APP
+// 4. APP КОРЕНЬ
 // ==========================================
 type ScreenState = 'loading' | 'menu' | 'battle';
 
 const App: React.FC = () => {
   const [screen, setScreen] = useState<ScreenState>('loading');
-  const [isPortrait, setIsPortrait] = useState(false);
+  const [isPortrait, setIsPortrait] = useState<boolean>(checkPortraitSync);
 
   useEffect(() => {
-    const checkOrientation = () => {
+    const handleResize = () => {
       setIsPortrait(window.innerHeight > window.innerWidth);
     };
-    checkOrientation();
-    window.addEventListener('resize', checkOrientation);
-    return () => window.removeEventListener('resize', checkOrientation);
+
+    handleResize();
+    window.addEventListener('resize', handleResize);
+    window.addEventListener('orientationchange', handleResize);
+    return () => {
+      window.removeEventListener('resize', handleResize);
+      window.removeEventListener('orientationchange', handleResize);
+    };
   }, []);
 
   return (
     <main style={styles.root}>
-      {/* Импорт комиксного круглого шрифта прямо в компонент */}
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Fredoka:wght@700;900&family=Rubik:wght@900&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Rubik:wght@800;900&display=swap');
         @keyframes phoneRotateAnim {
           0% { transform: rotate(0deg); }
           30% { transform: rotate(-90deg); }
@@ -157,10 +164,10 @@ const App: React.FC = () => {
         }
       `}</style>
 
-      {/* Экран-страховка от вертикального режима */}
+      {/* Заглушка вертикального экрана */}
       <LandscapeGuard isPortrait={isPortrait} />
 
-      {/* Экран загрузки с блокировкой таймера в вертикали */}
+      {/* Экран загрузки */}
       {screen === 'loading' && (
         <LoadingScreen onLoaded={() => setScreen('menu')} isPortrait={isPortrait} />
       )}
@@ -168,14 +175,14 @@ const App: React.FC = () => {
       {/* Главное меню */}
       {screen === 'menu' && <MainMenu />}
 
-      {/* Холст битвы (пока не используется) */}
+      {/* Битва */}
       {screen === 'battle' && <GameStage />}
     </main>
   );
 };
 
 // ==========================================
-// СТИЛИ (НАДУТЫЕ ФОРМЫ, БОРДОВЫЕ ГРАНИЦЫ)
+// ТОЧНЫЕ СТИЛИ ПО РЕФЕРЕНСУ
 // ==========================================
 const styles: Record<string, React.CSSProperties> = {
   root: {
@@ -184,9 +191,9 @@ const styles: Record<string, React.CSSProperties> = {
     position: 'relative',
     overflow: 'hidden',
     backgroundColor: '#000000',
-    fontFamily: '"Fredoka", "Rubik", sans-serif'
+    fontFamily: '"Rubik", -apple-system, sans-serif'
   },
-  // Поворот экрана
+  // Guard
   guardOverlay: {
     position: 'fixed',
     inset: 0,
@@ -195,33 +202,33 @@ const styles: Record<string, React.CSSProperties> = {
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
-    padding: '24px'
+    padding: '20px'
   },
   guardCard: {
     display: 'flex',
     flexDirection: 'column',
     alignItems: 'center',
     textAlign: 'center',
-    gap: '14px'
+    gap: '12px'
   },
   guardIconWrap: {
     animation: 'phoneRotateAnim 2.5s ease-in-out infinite',
-    filter: 'drop-shadow(0 0 16px rgba(255,255,255,0.4))'
+    filter: 'drop-shadow(0 0 14px rgba(255,255,255,0.35))'
   },
   guardTitle: {
     margin: 0,
     color: '#ffffff',
-    fontSize: '24px',
+    fontSize: '22px',
     fontWeight: 900,
     letterSpacing: '2px'
   },
   guardDesc: {
     margin: 0,
-    color: '#a89294',
-    fontSize: '15px',
-    maxWidth: '260px'
+    color: '#9e898b',
+    fontSize: '14px',
+    maxWidth: '240px'
   },
-  // Загрузка
+  // Экран загрузки
   loadingContainer: {
     position: 'fixed',
     inset: 0,
@@ -235,60 +242,62 @@ const styles: Record<string, React.CSSProperties> = {
     display: 'flex',
     flexDirection: 'column',
     alignItems: 'center',
-    gap: '24px',
-    width: '80%'
+    justifyContent: 'center',
+    gap: '18px',
+    width: '100%',
+    height: '100%'
   },
-  bigLogoBox: {
+  hugeLogoBox: {
     position: 'relative',
-    width: '60vw',
-    maxWidth: '460px',
-    height: '35vh',
-    maxHeight: '170px',
+    width: '78vw',
+    maxWidth: '560px',
+    height: '62vh',
+    maxHeight: '270px',
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center'
   },
-  bigLogoBase: {
+  hugeLogoBase: {
     width: '100%',
     height: '100%',
     objectFit: 'contain',
-    opacity: 0.16,
+    opacity: 0.15,
     filter: 'grayscale(70%)'
   },
-  bigLogoActive: {
+  hugeLogoActive: {
     position: 'absolute',
     inset: 0,
     width: '100%',
     height: '100%',
     objectFit: 'contain',
-    filter: 'drop-shadow(0 0 20px rgba(220, 38, 38, 0.45))'
+    filter: 'drop-shadow(0 0 24px rgba(210, 30, 30, 0.5))'
   },
-  progressWrap: {
+  smallProgressWrap: {
     display: 'flex',
     flexDirection: 'column',
     alignItems: 'center',
-    gap: '10px'
+    gap: '6px'
   },
-  progressTrack: {
-    width: '340px',
-    maxWidth: '65vw',
-    height: '22px',
-    backgroundColor: '#0c0203',
-    borderRadius: '20px',
-    border: '3px solid #3d090d',
-    padding: '3px',
-    boxShadow: 'inset 0 2px 5px rgba(0,0,0,0.8)'
+  smallProgressTrack: {
+    width: '170px',
+    maxWidth: '45vw',
+    height: '7px',
+    backgroundColor: '#0a0203',
+    borderRadius: '10px',
+    border: '1.5px solid #3d090d',
+    padding: '1px',
+    overflow: 'hidden'
   },
-  progressFill: {
+  smallProgressFill: {
     height: '100%',
-    borderRadius: '14px',
-    background: 'linear-gradient(180deg, #f04e3e 0%, #b81e18 50%, #751210 100%)',
-    boxShadow: '0 0 10px rgba(240, 78, 62, 0.6), inset 0 2px 2px rgba(255,255,255,0.4)',
-    transition: 'width 0.1s linear'
+    borderRadius: '10px',
+    background: 'linear-gradient(180deg, #f04e3e 0%, #a81a15 100%)',
+    boxShadow: '0 0 6px rgba(240, 78, 62, 0.7)',
+    transition: 'width 0.08s linear'
   },
-  progressText: {
-    color: '#a35357',
-    fontSize: '14px',
+  smallProgressText: {
+    color: '#8b4b4e',
+    fontSize: '11px',
     fontWeight: 900,
     letterSpacing: '1px'
   },
@@ -315,38 +324,39 @@ const styles: Record<string, React.CSSProperties> = {
     display: 'flex',
     flexDirection: 'column',
     alignItems: 'center',
-    gap: '12px',
-    paddingBottom: '2vh'
+    justifyContent: 'center',
+    gap: '6px',
+    height: '100%'
   },
   menuLogoWrapper: {
     display: 'flex',
-    justifyContent: 'center'
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: '2px'
   },
   menuBigLogo: {
-    height: '32vh',
-    maxHeight: '145px',
-    maxWidth: '75vw',
+    height: '42vh',
+    maxHeight: '175px',
+    maxWidth: '52vw',
     objectFit: 'contain',
-    filter: 'drop-shadow(0 8px 16px rgba(0,0,0,0.5))'
+    filter: 'drop-shadow(0 6px 12px rgba(0,0,0,0.5))'
   },
   btnColumn: {
     display: 'flex',
     flexDirection: 'column',
-    gap: '10px',
+    gap: '7px',
     alignItems: 'center'
   },
-  // НАДУТАЯ МАРМЕЛАДНАЯ КНОПКА
+  // АККУРАТНАЯ КАПСУЛА-КНОПКА ТОЧНО С РЕФЕРЕНСА
   puffyBtn: {
     position: 'relative',
-    width: '280px',
-    maxWidth: '44vw',
-    height: '50px',
-    maxHeight: '11vh',
-    borderRadius: '26px',
-    // Сочный бордовый градиент
-    background: 'linear-gradient(180deg, #be2c24 0%, #9c1f18 42%, #75130f 78%, #4a0b08 100%)',
-    // ТЕМНО-БОРДОВАЯ ОБВОДКА ВМЕСТО ЧЕРНОЙ
-    border: '3px solid #380708',
+    width: '190px',
+    maxWidth: '26vw',
+    height: '40px',
+    maxHeight: '9.5vh',
+    borderRadius: '9999px',
+    background: 'linear-gradient(180deg, #991e18 0%, #7d1713 52%, #4d0b0a 100%)',
+    border: '2.5px solid #240506',
     cursor: 'pointer',
     outline: 'none',
     display: 'flex',
@@ -356,32 +366,33 @@ const styles: Record<string, React.CSSProperties> = {
     userSelect: 'none',
     WebkitTapHighlightColor: 'transparent',
     overflow: 'hidden',
-    transition: 'transform 0.08s ease-out, box-shadow 0.08s ease-out'
+    transition: 'transform 0.06s ease-out, box-shadow 0.06s ease-out'
   },
   btnHighlight: {
     position: 'absolute',
-    top: '3px',
-    left: '12px',
-    right: '12px',
-    height: '42%',
-    borderRadius: '20px 20px 100px 100px',
-    // Надутый овальный блик света
-    background: 'linear-gradient(180deg, rgba(255,255,255,0.62) 0%, rgba(255,255,255,0.12) 80%, transparent 100%)',
+    top: '2px',
+    left: '10px',
+    right: '10px',
+    height: '38%',
+    borderRadius: '9999px',
+    background: 'linear-gradient(180deg, rgba(255,255,255,0.65) 0%, rgba(255,255,255,0.08) 100%)',
     pointerEvents: 'none'
   },
   puffyBtnText: {
     position: 'relative',
     zIndex: 2,
     color: '#ffffff',
-    fontFamily: '"Fredoka", "Rubik", sans-serif',
-    fontSize: '23px',
+    fontFamily: '"Rubik", sans-serif',
+    fontSize: '18px',
     fontWeight: 900,
-    letterSpacing: '1.2px',
+    letterSpacing: '1px',
     textTransform: 'uppercase',
-    // Мягкая темная тень комиксного шрифта
     textShadow: `
-      0 2px 0 #280405,
-      0 3px 3px rgba(0,0,0,0.6)
+      -1.5px -1.5px 0 #200405,
+       1.5px -1.5px 0 #200405,
+      -1.5px  1.5px 0 #200405,
+       1.5px  1.5px 0 #200405,
+       0px  2px 3px rgba(0,0,0,0.8)
     `,
     pointerEvents: 'none'
   }
