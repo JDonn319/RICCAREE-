@@ -1,6 +1,9 @@
 import React, { useEffect, useRef } from 'react';
 import * as THREE from 'three';
 
+const WORLD_TOTAL_WIDTH = 2105; // Длина игрового поля
+const PART_WIDTH = WORLD_TOTAL_WIDTH / 3; // Ширина каждой из 3 частей (~701.67px)
+
 export const GameStage: React.FC = () => {
   const mountRef = useRef<HTMLDivElement>(null);
 
@@ -12,8 +15,8 @@ export const GameStage: React.FC = () => {
     const scene = new THREE.Scene();
     scene.background = new THREE.Color('#101010');
 
-    // 2. 2D Ортографическая камера под высоту экрана
-    const viewHeight = 540; // Базовая высота мира
+    // 2. 2D Ортографическая камера
+    const viewHeight = 540;
     const aspect = window.innerWidth / window.innerHeight;
     const viewWidth = viewHeight * aspect;
 
@@ -27,7 +30,7 @@ export const GameStage: React.FC = () => {
     );
     camera.position.z = 20;
 
-    // 3. Рендерер с правильной цветопередачей
+    // 3. Рендерер
     const renderer = new THREE.WebGLRenderer({ antialias: false, powerPreference: 'high-performance' });
     renderer.setSize(window.innerWidth, window.innerHeight);
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
@@ -37,53 +40,42 @@ export const GameStage: React.FC = () => {
     const textureLoader = new THREE.TextureLoader();
 
     // ==========================================
-    // 4. СШИВАНИЕ ПАНОРАМЫ ИЗ 3 ЧАСТЕЙ
+    // 4. ПАНОРАМА ИЗ 3 ЧАСТЕЙ (СУММАРНО 2105 PX)
     // ==========================================
-    // Приблизительная пропорция 16:9 для фонов до момента их загрузки
-    const defaultPartWidth = viewHeight * (16 / 9);
-
-    const bgMeshes: THREE.Mesh[] = [];
     const bgParts = ['/backpart1.png', '/backpart2.png', '/backpart3.png'];
 
     bgParts.forEach((src, idx) => {
-      const geo = new THREE.PlaneGeometry(defaultPartWidth, viewHeight);
+      // +0.5px перекрытия для исключения швов
+      const geo = new THREE.PlaneGeometry(PART_WIDTH + 0.5, viewHeight);
       const mat = new THREE.MeshBasicMaterial({ color: '#222222' });
       const mesh = new THREE.Mesh(geo, mat);
 
-      // Раскладываем слева направо: part1 (-W), part2 (0), part3 (+W)
-      mesh.position.set((idx - 1) * defaultPartWidth, 0, 0);
+      // Раскладка по X: Part1 (-701.67), Part2 (0), Part3 (+701.67)
+      const posX = (idx - 1) * PART_WIDTH;
+      mesh.position.set(posX, 0, 0);
       scene.add(mesh);
-      bgMeshes.push(mesh);
 
-      // Загрузка реального арта с обновлением пропорций
       textureLoader.load(src, (tex) => {
         tex.colorSpace = THREE.SRGBColorSpace;
         tex.magFilter = THREE.NearestFilter;
         mat.map = tex;
         mat.color.set('#ffffff');
         mat.needsUpdate = true;
-
-        if (tex.image && tex.image.height > 0) {
-          const partAspect = tex.image.width / tex.image.height;
-          const realWidth = viewHeight * partAspect;
-          mesh.geometry.dispose();
-          mesh.geometry = new THREE.PlaneGeometry(realWidth + 1, viewHeight); // +1px исключает зазоры
-        }
       });
     });
 
     // ==========================================
-    // 5. БАШНИ: ВРАГ СЛЕВА (etower1), МЫ СПРАВА (tower)
+    // 5. БАШНИ ПО КРАЯМ ПОЛЯ 2105
     // ==========================================
-    const towerHeight = viewHeight * 0.65; // Башня занимает ~65% высоты экрана
-    const towerDefaultWidth = towerHeight * 0.55;
-    const groundLevelY = -viewHeight / 2 + towerHeight / 2; // Прижаты к низу экрана
+    const towerHeight = viewHeight * 0.65;
+    const defaultTowerWidth = towerHeight * 0.55;
+    const groundLevelY = -viewHeight / 2 + towerHeight / 2;
 
-    // Наша башня (справа)
-    const playerTowerGeo = new THREE.PlaneGeometry(towerDefaultWidth, towerHeight);
+    // 1. Наша башня (СПРАВА)
+    const playerTowerGeo = new THREE.PlaneGeometry(defaultTowerWidth, towerHeight);
     const playerTowerMat = new THREE.MeshBasicMaterial({ transparent: true, alphaTest: 0.05 });
     const playerTower = new THREE.Mesh(playerTowerGeo, playerTowerMat);
-    playerTower.position.set(defaultPartWidth * 1.05, groundLevelY, 2);
+    playerTower.position.set(WORLD_TOTAL_WIDTH / 2 - defaultTowerWidth / 2 - 30, groundLevelY, 2);
     scene.add(playerTower);
 
     textureLoader.load('/tower.png', (tex) => {
@@ -91,18 +83,20 @@ export const GameStage: React.FC = () => {
       tex.magFilter = THREE.NearestFilter;
       playerTowerMat.map = tex;
       playerTowerMat.needsUpdate = true;
-      if (tex.image) {
+      if (tex.image && tex.image.height > 0) {
         const tAspect = tex.image.width / tex.image.height;
+        const realW = towerHeight * tAspect;
         playerTower.geometry.dispose();
-        playerTower.geometry = new THREE.PlaneGeometry(towerHeight * tAspect, towerHeight);
+        playerTower.geometry = new THREE.PlaneGeometry(realW, towerHeight);
+        playerTower.position.x = WORLD_TOTAL_WIDTH / 2 - realW / 2 - 30;
       }
     });
 
-    // Вражеская башня (слева)
-    const enemyTowerGeo = new THREE.PlaneGeometry(towerDefaultWidth, towerHeight);
+    // 2. Башня врага (СЛЕВА)
+    const enemyTowerGeo = new THREE.PlaneGeometry(defaultTowerWidth, towerHeight);
     const enemyTowerMat = new THREE.MeshBasicMaterial({ transparent: true, alphaTest: 0.05 });
     const enemyTower = new THREE.Mesh(enemyTowerGeo, enemyTowerMat);
-    enemyTower.position.set(-defaultPartWidth * 1.05, groundLevelY, 2);
+    enemyTower.position.set(-WORLD_TOTAL_WIDTH / 2 + defaultTowerWidth / 2 + 30, groundLevelY, 2);
     scene.add(enemyTower);
 
     textureLoader.load('/etower1.png', (tex) => {
@@ -110,21 +104,23 @@ export const GameStage: React.FC = () => {
       tex.magFilter = THREE.NearestFilter;
       enemyTowerMat.map = tex;
       enemyTowerMat.needsUpdate = true;
-      if (tex.image) {
+      if (tex.image && tex.image.height > 0) {
         const tAspect = tex.image.width / tex.image.height;
+        const realW = towerHeight * tAspect;
         enemyTower.geometry.dispose();
-        enemyTower.geometry = new THREE.PlaneGeometry(towerHeight * tAspect, towerHeight);
+        enemyTower.geometry = new THREE.PlaneGeometry(realW, towerHeight);
+        enemyTower.position.x = -WORLD_TOTAL_WIDTH / 2 + realW / 2 + 30;
       }
     });
 
     // ==========================================
-    // 6. УПРАВЛЕНИЕ КАМЕРОЙ И СКРОЛЛОМ (СВАЙПЫ)
+    // 6. СВАЙПЫ И ГРАНИЦЫ КАМЕРЫ
     // ==========================================
-    const totalHalfWidth = (defaultPartWidth * 3) / 2;
-    const minCamX = -totalHalfWidth + viewWidth / 2; // Левый край (башня врага)
-    const maxCamX = totalHalfWidth - viewWidth / 2;  // Правый край (наша башня)
+    const halfWorld = WORLD_TOTAL_WIDTH / 2;
+    const minCamX = -halfWorld + viewWidth / 2; // Предел у башни врага
+    const maxCamX = halfWorld - viewWidth / 2;  // Предел у нашей башни
 
-    // Стартуем строго справа — у нашей башни
+    // Стартуем справа — у нашей башни
     const startCamX = maxCamX;
     camera.position.x = startCamX;
     camera.position.y = 0;
@@ -157,7 +153,7 @@ export const GameStage: React.FC = () => {
     window.addEventListener('pointerup', onPointerUp);
     window.addEventListener('pointercancel', onPointerUp);
 
-    // Ресайз окна
+    // Ресайз
     const handleResize = () => {
       const w = window.innerWidth;
       const h = window.innerHeight;
@@ -174,7 +170,7 @@ export const GameStage: React.FC = () => {
     };
     window.addEventListener('resize', handleResize);
 
-    // Цикл рендера с мягким следованием камеры
+    // Цикл рендера
     let animId: number;
     const animate = () => {
       animId = requestAnimationFrame(animate);
