@@ -25,7 +25,7 @@ const LandscapeGuard: React.FC<{ isPortrait: boolean }> = ({ isPortrait }) => {
 };
 
 // ==========================================
-// 2. ЭКРАН ЗАГРУЗКИ (ТОЛЬКО В ГОРИЗОНТАЛИ)
+// 2. ЭКРАН ЗАГРУЗКИ (ПРЕДЗАГРУЗКА ВСЕХ КАРТИНОК)
 // ==========================================
 const LoadingScreen: React.FC<{ onLoaded: () => void; isPortrait: boolean }> = ({ onLoaded, isPortrait }) => {
   const [progress, setProgress] = useState(0);
@@ -38,7 +38,10 @@ const LoadingScreen: React.FC<{ onLoaded: () => void; isPortrait: boolean }> = (
       '/RiccarLogo.png',
       '/play.png',
       '/shop.png',
-      '/chests.png'
+      '/chests.png',
+      '/basic.png',
+      '/multiplayer.png',
+      '/apocalypse.png'
     ];
 
     assets.forEach((src) => {
@@ -85,20 +88,20 @@ const LoadingScreen: React.FC<{ onLoaded: () => void; isPortrait: boolean }> = (
 };
 
 // ==========================================
-// 3. КНОПКА (БЕЗ СВЕЧЕНИЯ, БЕЗ ТЕНЕЙ, ЧИСТЫЙ ТАП)
+// 3. БАЗОВАЯ КНОПКА (ФИКСИРОВАННЫЙ РАЗМЕР)
 // ==========================================
-const MenuButton: React.FC<{ src: string; alt: string }> = ({ src, alt }) => {
+const MenuButton: React.FC<{ src: string; alt: string; onClick?: () => void }> = ({ src, alt, onClick }) => {
   const [pressed, setPressed] = useState(false);
 
   return (
     <button
       onPointerDown={() => setPressed(true)}
-      onPointerUp={() => setPressed(false)}
+      onPointerUp={() => { setPressed(false); onClick?.(); }}
       onPointerLeave={() => setPressed(false)}
       onPointerCancel={() => setPressed(false)}
       style={{
         ...styles.btn,
-        transform: pressed ? 'translateY(3px) scale(0.97)' : 'none'
+        transform: pressed ? 'translateY(2px) scale(0.97)' : 'none'
       }}
     >
       <img src={src} alt={alt} style={styles.btnImg} draggable={false} />
@@ -107,20 +110,18 @@ const MenuButton: React.FC<{ src: string; alt: string }> = ({ src, alt }) => {
 };
 
 // ==========================================
-// 4. ГЛАВНОЕ МЕНЮ (ТОЧНО ПО РЕФЕРЕНСУ)
+// 4. ГЛАВНОЕ МЕНЮ
 // ==========================================
-const MainMenu: React.FC = () => {
+const MainMenu: React.FC<{ onPlay: () => void }> = ({ onPlay }) => {
   return (
     <div style={styles.menuContainer}>
-      {/* Чистый фон */}
       <img src="/MainMenuBackground.png" alt="BG" style={styles.menuBg} draggable={false} />
       
-      {/* Единый центральный блок: Огромное лого прямо над кнопками */}
       <div style={styles.centerBlock}>
         <img src="/RiccarLogo.png" alt="RICAREE" style={styles.menuLogo} draggable={false} />
 
         <div style={styles.btnStack}>
-          <MenuButton src="/play.png" alt="PLAY" />
+          <MenuButton src="/play.png" alt="PLAY" onClick={onPlay} />
           <MenuButton src="/shop.png" alt="SHOP" />
           <MenuButton src="/chests.png" alt="CHESTS" />
         </div>
@@ -130,9 +131,77 @@ const MainMenu: React.FC = () => {
 };
 
 // ==========================================
-// 5. APP ROOT
+// 5. ЭКРАН ВЫБОРА РЕЖИМОВ
 // ==========================================
-type ScreenState = 'loading' | 'menu' | 'battle';
+const ModeSelectScreen: React.FC<{ onBack: () => void }> = ({ onBack }) => {
+  const [arrowPressed, setArrowPressed] = useState(false);
+
+  return (
+    <div style={styles.menuContainer}>
+      {/* Тот же фон замков */}
+      <img src="/MainMenuBackground.png" alt="BG" style={styles.menuBg} draggable={false} />
+
+      {/* Кнопки режимов вылетают сверху в один ряд */}
+      <div style={styles.modesRow}>
+        <ModeCard src="/basic.png" alt="BASIC" />
+        <ModeCard src="/multiplayer.png" alt="MULTIPLAYER" />
+        <ModeCard src="/apocalypse.png" alt="APOCALYPSE" />
+      </div>
+
+      {/* Высокая узкая полупрозрачная белая стрелочка справа */}
+      <button
+        onPointerDown={() => setArrowPressed(true)}
+        onPointerUp={() => setArrowPressed(false)}
+        onPointerLeave={() => setArrowPressed(false)}
+        style={{
+          ...styles.arrowBtn,
+          transform: arrowPressed ? 'translateY(-50%) scale(0.92)' : 'translateY(-50%)'
+        }}
+      >
+        <svg viewBox="0 0 16 52" style={styles.arrowSvg}>
+          <path
+            d="M 3,4 L 13,26 L 3,48"
+            fill="none"
+            stroke="rgba(255, 255, 255, 0.55)"
+            strokeWidth="3.2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+        </svg>
+      </button>
+
+      {/* Маленькая незаметная кнопка «Назад в меню» слева */}
+      <button onClick={onBack} style={styles.backBtn}>
+        ←
+      </button>
+    </div>
+  );
+};
+
+// Карточка режима игры
+const ModeCard: React.FC<{ src: string; alt: string }> = ({ src, alt }) => {
+  const [pressed, setPressed] = useState(false);
+
+  return (
+    <button
+      onPointerDown={() => setPressed(true)}
+      onPointerUp={() => setPressed(false)}
+      onPointerLeave={() => setPressed(false)}
+      onPointerCancel={() => setPressed(false)}
+      style={{
+        ...styles.modeBtn,
+        transform: pressed ? 'scale(0.96) translateY(2px)' : 'none'
+      }}
+    >
+      <img src={src} alt={alt} style={styles.modeImg} draggable={false} />
+    </button>
+  );
+};
+
+// ==========================================
+// 6. APP ROOT
+// ==========================================
+type ScreenState = 'loading' | 'menu' | 'mode_select' | 'battle';
 
 const App: React.FC = () => {
   const [screen, setScreen] = useState<ScreenState>('loading');
@@ -154,7 +223,7 @@ const App: React.FC = () => {
 
   return (
     <main style={styles.root}>
-      {/* Отключение любых рамок, контуров и подсветки браузера */}
+      {/* Анимация быстрого и плавного вылета кнопок сверху */}
       <style>{`
         * {
           -webkit-tap-highlight-color: transparent !important;
@@ -168,6 +237,16 @@ const App: React.FC = () => {
           border: none !important;
           background: transparent !important;
         }
+        @keyframes dropDownAnim {
+          0% {
+            transform: translateY(-90px);
+            opacity: 0;
+          }
+          100% {
+            transform: translateY(0);
+            opacity: 1;
+          }
+        }
       `}</style>
 
       <LandscapeGuard isPortrait={isPortrait} />
@@ -176,7 +255,13 @@ const App: React.FC = () => {
         <LoadingScreen onLoaded={() => setScreen('menu')} isPortrait={isPortrait} />
       )}
 
-      {screen === 'menu' && <MainMenu />}
+      {screen === 'menu' && (
+        <MainMenu onPlay={() => setScreen('mode_select')} />
+      )}
+
+      {screen === 'mode_select' && (
+        <ModeSelectScreen onBack={() => setScreen('menu')} />
+      )}
 
       {screen === 'battle' && <GameStage />}
     </main>
@@ -184,7 +269,7 @@ const App: React.FC = () => {
 };
 
 // ==========================================
-// СТИЛИ (ПОЛНЫЙ НОЛЬ ТЕНЕЙ, ГРАДИЕНТОВ И СВЕЧЕНИЙ)
+// СТИЛИ
 // ==========================================
 const styles: Record<string, React.CSSProperties> = {
   root: {
@@ -266,7 +351,7 @@ const styles: Record<string, React.CSSProperties> = {
   },
   progressTrack: {
     width: '180px',
-    maxWidth: '45vw',
+    maxWidth: '42vw',
     height: '6px',
     backgroundColor: '#000000',
     borderRadius: '4px',
@@ -295,7 +380,6 @@ const styles: Record<string, React.CSSProperties> = {
     objectFit: 'cover',
     pointerEvents: 'none'
   },
-  // ЦЕНТРАЛЬНЫЙ БЛОК МЕНЮ
   centerBlock: {
     position: 'relative',
     zIndex: 10,
@@ -306,7 +390,6 @@ const styles: Record<string, React.CSSProperties> = {
     height: '100%',
     gap: '8px'
   },
-  // РЕАЛЬНО ОГРОМНЫЙ ЛОГОТИП
   menuLogo: {
     width: '46vw',
     maxWidth: '420px',
@@ -314,14 +397,13 @@ const styles: Record<string, React.CSSProperties> = {
     maxHeight: '42vh',
     objectFit: 'contain'
   },
-  // СТЕК КНОПОК
   btnStack: {
     display: 'flex',
     flexDirection: 'column',
     gap: '6px',
     alignItems: 'center'
   },
-  // ЧИСТАЯ КНОПКА (БЕЗ СВЕЧЕНИЯ, БЕЗ ФОНА, БЕЗ ТЕНЕЙ)
+  // КНОПКА ГЛАВНОГО МЕНЮ (ЧЕТКАЯ ФИКСАЦИЯ ВЫСОТЫ)
   btn: {
     background: 'none',
     border: 'none',
@@ -335,11 +417,80 @@ const styles: Record<string, React.CSSProperties> = {
     transition: 'transform 0.05s ease-out'
   },
   btnImg: {
-    width: '24vw',
-    maxWidth: '210px',
-    height: 'auto',
+    height: '38px',
+    maxHeight: '9vh',
+    width: 'auto',
+    maxWidth: '200px',
     objectFit: 'contain',
     pointerEvents: 'none'
+  },
+  // РЯД РЕЖИМОВ (ВЫЛЕТАЕТ СВЕРХУ)
+  modesRow: {
+    position: 'absolute',
+    top: '12%',
+    left: '5%',
+    right: '8%', // Оставляем место для стрелочки справа
+    display: 'flex',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: '12px',
+    zIndex: 20,
+    animation: 'dropDownAnim 0.38s cubic-bezier(0.16, 1, 0.3, 1) forwards'
+  },
+  modeBtn: {
+    flex: '1',
+    maxWidth: '28vw',
+    background: 'none',
+    border: 'none',
+    padding: 0,
+    margin: 0,
+    cursor: 'pointer',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    touchAction: 'manipulation',
+    transition: 'transform 0.06s ease-out'
+  },
+  modeImg: {
+    width: '100%',
+    maxHeight: '48vh',
+    objectFit: 'contain',
+    pointerEvents: 'none'
+  },
+  // СТРЕЛОЧКА СПРАВА (ВЫСОКАЯ, УЗКАЯ, ПОЛУПРОЗРАЧНАЯ)
+  arrowBtn: {
+    position: 'absolute',
+    right: 'env(safe-area-inset-right, 16px)',
+    top: '50%',
+    zIndex: 30,
+    background: 'none',
+    border: 'none',
+    padding: '8px',
+    margin: 0,
+    cursor: 'pointer',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    touchAction: 'manipulation',
+    transition: 'transform 0.06s ease-out'
+  },
+  arrowSvg: {
+    width: '18px',
+    height: '75px',
+    pointerEvents: 'none'
+  },
+  backBtn: {
+    position: 'absolute',
+    left: 'env(safe-area-inset-left, 16px)',
+    top: '16px',
+    zIndex: 30,
+    color: 'rgba(255, 255, 255, 0.6)',
+    fontSize: '24px',
+    background: 'none',
+    border: 'none',
+    cursor: 'pointer',
+    padding: '6px'
   }
 };
 
