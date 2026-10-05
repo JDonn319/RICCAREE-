@@ -33,7 +33,7 @@ const LoadingScreen: React.FC<{ onLoaded: () => void; isPortrait: boolean }> = (
   useEffect(() => {
     if (isPortrait) return;
 
-    // Кешируем меню, фоны панорамы и башни
+    // Кешируем все картинки меню, панорамы и башен
     const assets = [
       '/MainMenuBackground.png',
       '/RiccarLogo.png',
@@ -118,7 +118,7 @@ const MenuButton: React.FC<{ src: string; alt: string; onClick?: () => void }> =
 };
 
 // ==========================================
-// 4. СТВОРКА РЕЖИМА НА ВЕСЬ ЭКРАН
+// 4. СТВОРКА РЕЖИМА НА ВЕСЬ ЭКРАН (50/50)
 // ==========================================
 const FullscreenModeHalf: React.FC<{
   side: 'left' | 'right';
@@ -229,7 +229,7 @@ const App: React.FC = () => {
     };
   }, []);
 
-  // Переход при нажатии на SOLO
+  // Переход при клике на SOLO: затемнение -> лоадер -> растемнение -> игра
   const handleStartSolo = () => {
     setIsFadingToBlack(true);
     setTimeout(() => {
@@ -286,7 +286,7 @@ const App: React.FC = () => {
         </div>
       )}
 
-      {/* Оверлей плавного перехода */}
+      {/* Черный экран для плавного затемнения */}
       <div 
         style={{
           ...styles.fadeCurtain,
