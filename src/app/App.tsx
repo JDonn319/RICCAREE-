@@ -2,14 +2,13 @@ import React, { useState, useEffect } from 'react';
 import { Smartphone } from 'lucide-react';
 import { GameStage } from '../game/GameStage';
 
-// Строгая проверка ориентации без задержек
 const checkIsPortrait = () => {
   if (typeof window === 'undefined') return false;
   return window.innerHeight > window.innerWidth;
 };
 
 // ==========================================
-// 1. ПОВОРОТ ЭКРАНА (ПОЛНОСТЬЮ НА АНГЛИЙСКОМ)
+// 1. ПОВОРОТ ЭКРАНА
 // ==========================================
 const LandscapeGuard: React.FC<{ isPortrait: boolean }> = ({ isPortrait }) => {
   if (!isPortrait) return null;
@@ -18,7 +17,7 @@ const LandscapeGuard: React.FC<{ isPortrait: boolean }> = ({ isPortrait }) => {
     <div style={styles.guardOverlay}>
       <div style={styles.guardCard}>
         <div style={styles.guardIconWrap}>
-          <Smartphone size={58} color="#ffffff" strokeWidth={1.8} />
+          <Smartphone size={56} color="#ffffff" strokeWidth={1.8} />
         </div>
         <h2 style={styles.guardTitle}>RICAREE!</h2>
         <p style={styles.guardDesc}>PLEASE ROTATE YOUR DEVICE</p>
@@ -34,8 +33,7 @@ const LoadingScreen: React.FC<{ onLoaded: () => void; isPortrait: boolean }> = (
   const [progress, setProgress] = useState(0);
 
   useEffect(() => {
-    // ЗАМОРОЖЕНО, пока телефон не повернут горизонтально!
-    if (isPortrait) return;
+    if (isPortrait) return; // Строгая пауза в вертикали
 
     const timer = setInterval(() => {
       setProgress((prev) => {
@@ -54,7 +52,6 @@ const LoadingScreen: React.FC<{ onLoaded: () => void; isPortrait: boolean }> = (
   return (
     <div style={styles.loadingContainer}>
       <div style={styles.loadingCenter}>
-        {/* Огромное лого на 75% высоты экрана */}
         <div style={styles.giantLogoBox}>
           <img src="/RiccarLogo.png" alt="Logo" style={styles.giantLogoBase} draggable={false} />
           <img 
@@ -68,7 +65,6 @@ const LoadingScreen: React.FC<{ onLoaded: () => void; isPortrait: boolean }> = (
           />
         </div>
 
-        {/* Тонкая минималистичная полоска */}
         <div style={styles.slimProgressBox}>
           <div style={styles.slimProgressTrack}>
             <div style={{ ...styles.slimProgressFill, width: `${progress}%` }} />
@@ -83,10 +79,9 @@ const LoadingScreen: React.FC<{ onLoaded: () => void; isPortrait: boolean }> = (
 };
 
 // ==========================================
-// 3. УПРУГАЯ НАДУТАЯ МАРМЕЛАДНАЯ КНОПКА (SVG)
+// 3. СВЕТЛАЯ КНОПКА (МЕНЬШЕ, СКРУГЛЕННЫЙ КВАДРАТ)
 // ==========================================
-// Форма: от меньшей высоты по краям раздувается к большей в центре!
-const JellyButton: React.FC<{ text: string }> = ({ text }) => {
+const MenuButton: React.FC<{ text: string }> = ({ text }) => {
   const [pressed, setPressed] = useState(false);
 
   return (
@@ -95,93 +90,45 @@ const JellyButton: React.FC<{ text: string }> = ({ text }) => {
       onPointerUp={() => setPressed(false)}
       onPointerLeave={() => setPressed(false)}
       style={{
-        ...styles.jellyBtnWrap,
-        transform: pressed ? 'scale(0.93, 0.88) translateY(3px)' : 'scale(1, 1)',
-        filter: pressed ? 'brightness(0.9)' : 'drop-shadow(0 6px 12px rgba(0,0,0,0.55))'
+        ...styles.btnBase,
+        transform: pressed ? 'translateY(2px) scale(0.97)' : 'translateY(0) scale(1)',
+        boxShadow: pressed
+          ? '0 2px 0 #280406, inset 0 2px 4px rgba(0,0,0,0.6)'
+          : '0 4px 0 #280406, 0 6px 10px rgba(0,0,0,0.45), inset 0 1px 2px rgba(255,255,255,0.55)'
       }}
     >
-      {/* Векторная надутая подушечка с выпуклым центром */}
-      <svg
-        viewBox="0 0 210 52"
-        style={styles.jellySvg}
-        preserveAspectRatio="none"
-      >
-        <defs>
-          {/* Сочный бордовый мармеладный градиент */}
-          <linearGradient id="jellyGrad" x1="0%" y1="0%" x2="0%" y2="100%">
-            <stop offset="0%" stopColor="#bf2820" />
-            <stop offset="42%" stopColor="#9a1d17" />
-            <stop offset="78%" stopColor="#6e120e" />
-            <stop offset="100%" stopColor="#430807" />
-          </linearGradient>
-
-          {/* Верхний желейный блик света */}
-          <linearGradient id="glossGrad" x1="0%" y1="0%" x2="0%" y2="100%">
-            <stop offset="0%" stopColor="#ffffff" stopOpacity="0.75" />
-            <stop offset="40%" stopColor="#ffffff" stopOpacity="0.3" />
-            <stop offset="100%" stopColor="#ffffff" stopOpacity="0" />
-          </linearGradient>
-        </defs>
-
-        {/* 1. Надутое тело кнопки (уже на краях, шире в центре) */}
-        <path
-          d="M 22,7 
-             C 65,1 145,1 188,7 
-             C 205,10 210,18 210,26 
-             C 210,34 205,42 188,45 
-             C 145,51 65,51 22,45 
-             C 5,42 0,34 0,26 
-             C 0,18 5,10 22,7 Z"
-          fill="url(#jellyGrad)"
-          stroke="#250406"
-          strokeWidth="3.5"
-          strokeLinejoin="round"
-        />
-
-        {/* 2. Надутый полукруглый блик */}
-        <path
-          d="M 26,10 
-             C 65,4 145,4 184,10 
-             C 192,12 195,17 186,21 
-             C 145,26 65,26 24,21 
-             C 15,17 18,12 26,10 Z"
-          fill="url(#glossGrad)"
-        />
-      </svg>
-
-      {/* Текст кнопки шрифтом Lemon Slice */}
-      <span style={styles.jellyBtnText}>{text}</span>
+      {/* Верхний глянцевый блик */}
+      <div style={styles.btnGloss} />
+      <span style={styles.btnText}>{text}</span>
     </button>
   );
 };
 
 // ==========================================
-// 4. ГЛАВНОЕ МЕНЮ (ОГРОМНЫЙ ЛОГОТИП + КНОПКИ)
+// 4. ГЛАВНОЕ МЕНЮ (КНОПКИ В ЦЕНТРЕ ЭКРАНА)
 // ==========================================
 const MainMenu: React.FC = () => {
   return (
     <div style={styles.menuContainer}>
       <img src="/MainMenuBackground.png" alt="BG" style={styles.menuBg} draggable={false} />
       
-      <div style={styles.menuCenter}>
-        {/* ЛОГОТИП В 2 РАЗА БОЛЬШЕ */}
-        <div style={styles.hugeMenuLogoBox}>
-          <img src="/RiccarLogo.png" alt="RICAREE" style={styles.hugeMenuLogo} draggable={false} />
-        </div>
+      {/* 1. ОГРОМНЫЙ ЛОГОТИП В НЕБЕ НАД КНОПКАМИ */}
+      <div style={styles.logoAnchor}>
+        <img src="/RiccarLogo.png" alt="RICAREE" style={styles.hugeMenuLogo} draggable={false} />
+      </div>
 
-        {/* Надутые мармеладные кнопки (ENGLISH) */}
-        <div style={styles.btnColumn}>
-          <JellyButton text="PLAY" />
-          <JellyButton text="SHOP" />
-          <JellyButton text="CHESTS" />
-        </div>
+      {/* 2. СУММАРНЫЙ БЛОК КНОПОК РОВНО В ЦЕНТРЕ ЭКРАНА */}
+      <div style={styles.centeredButtonCluster}>
+        <MenuButton text="PLAY" />
+        <MenuButton text="SHOP" />
+        <MenuButton text="CHESTS" />
       </div>
     </div>
   );
 };
 
 // ==========================================
-// 5. APP ROOT
+// 5. КОРНЕВОЙ APP
 // ==========================================
 type ScreenState = 'loading' | 'menu' | 'battle';
 
@@ -205,16 +152,17 @@ const App: React.FC = () => {
 
   return (
     <main style={styles.root}>
-      {/* Подключение шрифта Lemon Slice и резервного Fredoka */}
+      {/* Подключение шрифта Lemon Slice с резервом */}
       <style>{`
         @font-face {
           font-family: 'Lemon Slice';
           src: url('/LemonSlice.ttf') format('truetype'),
                url('/LemonSlice.otf') format('opentype'),
-               url('/gameplay/LemonSlice.ttf') format('truetype');
+               url('/Lemon Slice.ttf') format('truetype'),
+               url('/lemon-slice.ttf') format('truetype');
           font-display: swap;
         }
-        @import url('https://fonts.googleapis.com/css2?family=Fredoka:wght@700;900&family=Rubik:wght@900&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Rubik:wght@900&display=swap');
         
         @keyframes phoneRotateAnim {
           0% { transform: rotate(0deg); }
@@ -224,18 +172,18 @@ const App: React.FC = () => {
         }
       `}</style>
 
-      {/* Экран-страховка */}
+      {/* Экран блокировки */}
       <LandscapeGuard isPortrait={isPortrait} />
 
-      {/* Загрузка */}
+      {/* Экран загрузки */}
       {screen === 'loading' && (
         <LoadingScreen onLoaded={() => setScreen('menu')} isPortrait={isPortrait} />
       )}
 
-      {/* Главное меню */}
+      {/* Меню */}
       {screen === 'menu' && <MainMenu />}
 
-      {/* Поле битвы */}
+      {/* Битва */}
       {screen === 'battle' && <GameStage />}
     </main>
   );
@@ -251,7 +199,7 @@ const styles: Record<string, React.CSSProperties> = {
     position: 'relative',
     overflow: 'hidden',
     backgroundColor: '#000000',
-    fontFamily: '"Lemon Slice", "Fredoka", "Rubik", sans-serif'
+    fontFamily: '"Lemon Slice", "Rubik", sans-serif'
   },
   // Guard
   guardOverlay: {
@@ -288,7 +236,7 @@ const styles: Record<string, React.CSSProperties> = {
     fontSize: '13px',
     letterSpacing: '1px'
   },
-  // Загрузка
+  // Loading
   loadingContainer: {
     position: 'fixed',
     inset: 0,
@@ -309,10 +257,10 @@ const styles: Record<string, React.CSSProperties> = {
   },
   giantLogoBox: {
     position: 'relative',
-    width: '84vw',
-    maxWidth: '620px',
+    width: '85vw',
+    maxWidth: '640px',
     height: '70vh',
-    maxHeight: '310px',
+    maxHeight: '320px',
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center'
@@ -366,6 +314,7 @@ const styles: Record<string, React.CSSProperties> = {
     position: 'relative',
     width: '100vw',
     height: '100vh',
+    overflow: 'hidden',
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center'
@@ -378,48 +327,48 @@ const styles: Record<string, React.CSSProperties> = {
     objectFit: 'cover',
     pointerEvents: 'none'
   },
-  menuCenter: {
-    position: 'relative',
-    zIndex: 10,
-    display: 'flex',
-    flexDirection: 'column',
-    alignItems: 'center',
-    justifyContent: 'center',
-    height: '100%',
-    gap: '4px'
-  },
-  hugeMenuLogoBox: {
+  // ЛОГОТИП ЕЩЁ БОЛЬШЕ (В ВЕРХНЕЙ ЧАСТИ НЕБА)
+  logoAnchor: {
+    position: 'absolute',
+    top: '3%',
+    left: '50%',
+    transform: 'translateX(-50%)',
+    width: '100%',
     display: 'flex',
     justifyContent: 'center',
     alignItems: 'center',
-    // Огромный логотип в 2+ раза больше
-    height: '54vh',
-    maxHeight: '235px',
-    maxWidth: '78vw',
-    marginBottom: '-8px'
+    zIndex: 10
   },
   hugeMenuLogo: {
-    width: '100%',
-    height: '100%',
+    height: '46vh',
+    maxHeight: '210px',
+    maxWidth: '70vw',
     objectFit: 'contain',
     filter: 'drop-shadow(0 8px 16px rgba(0,0,0,0.55))'
   },
-  btnColumn: {
+  // ВСЕ КНОПКИ СУММАРНО В ЦЕНТРЕ ЭКРАНА
+  centeredButtonCluster: {
+    position: 'absolute',
+    top: '58%',
+    left: '50%',
+    transform: 'translate(-50%, -50%)',
     display: 'flex',
     flexDirection: 'column',
-    gap: '6px',
-    alignItems: 'center'
+    gap: '7px',
+    alignItems: 'center',
+    zIndex: 20
   },
-  // Надутая желейная кнопка
-  jellyBtnWrap: {
+  // СВЕТЛАЯ КНОПКА МЕНЬШЕГО РАЗМЕРА (СКРУГЛЕННЫЙ КВАДРАТ)
+  btnBase: {
     position: 'relative',
-    width: '195px',
-    maxWidth: '28vw',
-    height: '46px',
-    maxHeight: '11vh',
-    background: 'none',
-    border: 'none',
-    padding: 0,
+    width: '165px',
+    maxWidth: '24vw',
+    height: '37px',
+    maxHeight: '9vh',
+    borderRadius: '12px', // Скругленный прямоугольник вместо капсулы
+    // Светлый насыщенный красный градиент
+    background: 'linear-gradient(180deg, #e8382c 0%, #bd2319 50%, #8a130e 100%)',
+    border: '2.5px solid #280406',
     cursor: 'pointer',
     outline: 'none',
     display: 'flex',
@@ -428,30 +377,34 @@ const styles: Record<string, React.CSSProperties> = {
     touchAction: 'manipulation',
     userSelect: 'none',
     WebkitTapHighlightColor: 'transparent',
-    transition: 'transform 0.08s cubic-bezier(0.34, 1.56, 0.64, 1)'
+    overflow: 'hidden',
+    transition: 'transform 0.06s ease-out, box-shadow 0.06s ease-out'
   },
-  jellySvg: {
+  btnGloss: {
     position: 'absolute',
-    inset: 0,
-    width: '100%',
-    height: '100%',
+    top: '2px',
+    left: '5px',
+    right: '5px',
+    height: '38%',
+    borderRadius: '8px 8px 4px 4px',
+    background: 'linear-gradient(180deg, rgba(255,255,255,0.7) 0%, rgba(255,255,255,0.08) 100%)',
     pointerEvents: 'none'
   },
-  jellyBtnText: {
+  btnText: {
     position: 'relative',
     zIndex: 2,
     color: '#ffffff',
-    fontFamily: '"Lemon Slice", "Fredoka", sans-serif',
-    fontSize: '20px',
+    fontFamily: '"Lemon Slice", "Rubik", sans-serif',
+    fontSize: '17px',
     fontWeight: 900,
-    letterSpacing: '1.5px',
+    letterSpacing: '1px',
     textTransform: 'uppercase',
     textShadow: `
-      -2px -2px 0 #250406,
-       2px -2px 0 #250406,
-      -2px  2px 0 #250406,
-       2px  2px 0 #250406,
-       0px  2px 4px rgba(0,0,0,0.85)
+      -1.5px -1.5px 0 #280406,
+       1.5px -1.5px 0 #280406,
+      -1.5px  1.5px 0 #280406,
+       1.5px  1.5px 0 #280406,
+       0px  2px 3px rgba(0,0,0,0.8)
     `,
     pointerEvents: 'none'
   }
