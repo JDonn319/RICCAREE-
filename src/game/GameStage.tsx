@@ -7,46 +7,27 @@ const PART_WIDTH = WORLD_TOTAL_WIDTH / 3;
 
 type ArmyCommand = 'retreat' | 'defend' | 'attack';
 
-interface BoneTransform {
-  x: number;
-  y: number;
-  size: number;
+interface StickmanLimbs {
+  root: THREE.Group;
+  bodyGroup: THREE.Group;
+  head: THREE.Mesh;
+  eye?: THREE.Mesh;
+  spine: THREE.Mesh;
+  armL: THREE.Group;
+  forearmL: THREE.Mesh;
+  armR: THREE.Group;
+  forearmR: THREE.Mesh;
+  sword: THREE.Mesh;
+  legL: THREE.Group;
+  shinL: THREE.Mesh;
+  legR: THREE.Group;
+  shinR: THREE.Mesh;
 }
-
-interface RigConfig {
-  head: BoneTransform;
-  torso: BoneTransform;
-  armFront: BoneTransform;
-  armBack: BoneTransform;
-  legFront: BoneTransform;
-  legBack: BoneTransform;
-  sword: BoneTransform & { rot: number };
-}
-
-// Начальная калибровка под референс chibi-рыцаря
-const DEFAULT_RIG: RigConfig = {
-  torso: { x: 0, y: 38, size: 66 },
-  head: { x: 2, y: 44, size: 90 },
-  armFront: { x: 0, y: 52, size: 62 },
-  armBack: { x: 0, y: 52, size: 62 },
-  legFront: { x: 0, y: 28, size: 60 },
-  legBack: { x: 0, y: 28, size: 60 },
-  sword: { x: 14, y: -26, size: 85, rot: -36 }
-};
 
 interface UnitInstance {
   id: number;
   isEnemy: boolean;
-  group: THREE.Group;
-  parts: {
-    torso: THREE.Mesh;
-    head: THREE.Mesh;
-    armF: THREE.Group;
-    armB: THREE.Group;
-    legF: THREE.Group;
-    legB: THREE.Group;
-    sword: THREE.Mesh;
-  };
+  limbs: StickmanLimbs;
   row: number;
   rankCol: number;
   hp: number;
@@ -61,33 +42,26 @@ interface UnitInstance {
 export const GameStage: React.FC = () => {
   const mountRef = useRef<HTMLDivElement>(null);
 
-  // Состояние экономики и очереди Stick War
+  // Ресурсы и команды Stick War
   const [gold] = useState(950);
   const [pop, setPop] = useState(0);
   const [command, setCommand] = useState<ArmyCommand>('defend');
   const [trainQueue, setTrainQueue] = useState<number>(0);
   const [trainProgress, setTrainProgress] = useState<number>(0);
 
-  // Редактор рига
-  const [showEditor, setShowEditor] = useState(false);
-  const [rig, setRig] = useState<RigConfig>(DEFAULT_RIG);
-  const [copySuccess, setCopySuccess] = useState(false);
-
   const spawnUnitRef = useRef<(isEnemy: boolean) => void>(() => {});
   const commandRef = useRef<ArmyCommand>('defend');
-  const rigRef = useRef<RigConfig>(DEFAULT_RIG);
 
   useEffect(() => { commandRef.current = command; }, [command]);
-  useEffect(() => { rigRef.current = rig; }, [rig]);
 
-  // Обработка очереди обучения юнитов
+  // Очередь найма юнитов
   useEffect(() => {
     if (trainQueue <= 0) {
       setTrainProgress(0);
       return;
     }
 
-    const duration = 6000; // 6 секунд на воина
+    const duration = 5000; // 5 сек на тренировку стикмена
     const interval = 50;
     const step = (interval / duration) * 100;
 
@@ -114,7 +88,7 @@ export const GameStage: React.FC = () => {
     const scene = new THREE.Scene();
     scene.background = new THREE.Color('#101010');
 
-    // 2. Ортографическая камера
+    // 2. 2D Ортографическая камера
     const viewHeight = 540;
     const aspect = window.innerWidth / window.innerHeight;
     const viewWidth = viewHeight * aspect;
@@ -130,7 +104,7 @@ export const GameStage: React.FC = () => {
     camera.position.z = 20;
 
     // 3. Рендерер
-    const renderer = new THREE.WebGLRenderer({ antialias: false, powerPreference: 'high-performance' });
+    const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
     renderer.setSize(window.innerWidth, window.innerHeight);
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     renderer.outputColorSpace = THREE.SRGBColorSpace;
@@ -139,7 +113,7 @@ export const GameStage: React.FC = () => {
     const textureLoader = new THREE.TextureLoader();
 
     // ==========================================
-    // 4. ПАНОРАМА 2105 PX
+    // 4. ПАНОРАМА ФОНА (2105 PX)
     // ==========================================
     const bgParts = ['/backpart1.png', '/backpart2.png', '/backpart3.png'];
     bgParts.forEach((src, idx) => {
@@ -159,7 +133,7 @@ export const GameStage: React.FC = () => {
     });
 
     // ==========================================
-    // 5. БАШНИ
+    // 5. БАШНИ (НАША СЛЕВА, ВРАГ СПРАВА)
     // ==========================================
     const towerHeight = viewHeight * 0.85;
     const defaultTowerWidth = towerHeight * 0.55;
@@ -186,7 +160,7 @@ export const GameStage: React.FC = () => {
       }
     });
 
-    // Вражеская башня (СПРАВА)
+    // Башня врага (СПРАВА)
     const enemyTowerGeo = new THREE.PlaneGeometry(defaultTowerWidth, towerHeight);
     const enemyTowerMat = new THREE.MeshBasicMaterial({ transparent: true, alphaTest: 0.05 });
     const enemyTower = new THREE.Mesh(enemyTowerGeo, enemyTowerMat);
@@ -208,200 +182,185 @@ export const GameStage: React.FC = () => {
     });
 
     // ==========================================
-    // 6. ЗАГРУЗКА ЧАСТЕЙ ТЕЛА (1:1 КВАДРАТ)
-    // ==========================================
-    const createSquareFallback = (color: string, isBack = false) => {
-      const canvas = document.createElement('canvas');
-      canvas.width = 64;
-      canvas.height = 64;
-      const ctx = canvas.getContext('2d')!;
-      ctx.fillStyle = isBack ? '#2c313a' : color;
-      ctx.fillRect(4, 4, 56, 56);
-      ctx.strokeStyle = '#121417';
-      ctx.lineWidth = 5;
-      ctx.strokeRect(4, 4, 56, 56);
-      const tex = new THREE.CanvasTexture(canvas);
-      tex.magFilter = THREE.NearestFilter;
-      return tex;
-    };
-
-    const loadPiece = (names: string[], fallbackColor: string, isBack = false) => {
-      const fallback = createSquareFallback(fallbackColor, isBack);
-      const mat = new THREE.MeshBasicMaterial({
-        map: fallback,
-        transparent: true,
-        alphaTest: 0.05
-      });
-
-      const paths = names.flatMap((name) => [
-        `/gameplay/characters/${name}.png`,
-        `/gameplay/npc/${name}.png`,
-        `/${name}.png`
-      ]);
-
-      const tryLoad = (idx: number) => {
-        if (idx >= paths.length) return;
-        const img = new Image();
-        img.crossOrigin = 'anonymous';
-        img.onload = () => {
-          const tex = new THREE.Texture(img);
-          tex.colorSpace = THREE.SRGBColorSpace;
-          tex.magFilter = THREE.NearestFilter;
-          tex.needsUpdate = true;
-          mat.map = tex;
-          mat.needsUpdate = true;
-        };
-        img.onerror = () => tryLoad(idx + 1);
-        img.src = paths[idx];
-      };
-      tryLoad(0);
-      return mat;
-    };
-
-    const mats = {
-      head: loadPiece(['Whead', 'WHead'], '#5a6273'),
-      torso: loadPiece(['WTorso'], '#505666'),
-      armFront: loadPiece(['WArm1'], '#505666'),
-      armBack: loadPiece(['WArm2'], '#30343d', true),
-      legFront: loadPiece(['WLeg1'], '#464c59'),
-      legBack: loadPiece(['WLeg2'], '#2b2f38', true),
-      sword: loadPiece(['WSword'], '#d6dadf')
-    };
-
-    // 1:1 КВАДРАТНАЯ плоскость с точной точкой крепления
-    const createSquareBone = (size: number, mat: THREE.Material, anchor: 'top' | 'bottom' | 'center') => {
-      const geo = new THREE.PlaneGeometry(size, size);
-      if (anchor === 'top') {
-        geo.translate(0, -size / 2, 0); // Крепление за верхний край квадрата
-      } else if (anchor === 'bottom') {
-        geo.translate(0, size / 2, 0); // Крепление за нижний край квадрата
-      }
-      return new THREE.Mesh(geo, mat);
-    };
-
-    // ==========================================
-    // 7. СБОРКА РЫЦАРЯ И ПОСТРОЕНИЕ ПО 4 В РЯДУ
+    // 6. ВЕКТОРНЫЙ КОНСТРУКТОР СТИКМЕНОВ STICK WAR
     // ==========================================
     const allUnits: UnitInstance[] = [];
     const baseFloorY = -viewHeight / 2 + 35;
     let unitIdCounter = 0;
 
-    const buildRiggedKnight = (isEnemy: boolean, rankIndex: number, spawnX: number) => {
-      const cfg = rigRef.current;
-      const root = new THREE.Group();
+    // Материалы фигурок
+    const stickMatAlly = new THREE.MeshBasicMaterial({ color: '#111111' });
+    const stickMatEnemy = new THREE.MeshBasicMaterial({ color: '#1a1010' });
+    const eyeMat = new THREE.MeshBasicMaterial({ color: '#ff1744' }); // Алые глаза врагов
+    const swordMat = new THREE.MeshBasicMaterial({ color: '#cfd8dc' });
+    const hiltMat = new THREE.MeshBasicMaterial({ color: '#795548' });
 
-      // Шеренги по 4 в ряду (уменьшение вглубь)
+    // Построение сегмента конечности (линия со скруглением)
+    const createLimbSegment = (length: number, thickness: number, mat: THREE.Material) => {
+      const geo = new THREE.PlaneGeometry(thickness, length);
+      geo.translate(0, -length / 2, 0); // Пивот в суставе
+      return new THREE.Mesh(geo, mat);
+    };
+
+    const buildStickman = (isEnemy: boolean, rankIndex: number, spawnX: number) => {
+      const root = new THREE.Group();
+      const mat = isEnemy ? stickMatEnemy : stickMatAlly;
+
+      // Шеренги по 4 в ряду с перспективой
       const row = rankIndex % 4;
       const rankCol = Math.floor(rankIndex / 4);
       const depthScale = 1.0 - row * 0.06;
-      const rowOffsetY = row * 11;
+      const rowOffsetY = row * 10;
       const depthZ = 5 - row * 0.1;
 
       root.position.set(spawnX, baseFloorY + rowOffsetY, depthZ);
       root.scale.set(isEnemy ? -depthScale : depthScale, depthScale, 1);
 
-      // 1. ТОРС
-      const torso = createSquareBone(cfg.torso.size, mats.torso, 'center');
-      torso.position.set(cfg.torso.x, cfg.torso.y, 0);
-      root.add(torso);
+      // Группа туловища для наклонов при беге
+      const bodyGroup = new THREE.Group();
+      bodyGroup.position.set(0, 42, 0);
+      root.add(bodyGroup);
 
-      // 2. ГОЛОВА (за нижний край квадрата)
-      const head = createSquareBone(cfg.head.size, mats.head, 'bottom');
-      head.position.set(cfg.head.x, cfg.head.y, 0.05);
-      torso.add(head);
+      // 1. Позвоночник / Тело
+      const spine = createLimbSegment(32, 5.5, mat);
+      bodyGroup.add(spine);
 
-      // 3. НОГИ (за верхний край квадрата, общий центр)
-      const backLegPivot = new THREE.Group();
-      backLegPivot.position.set(cfg.legBack.x, cfg.legBack.y, -0.03);
-      const backLegMesh = createSquareBone(cfg.legBack.size, mats.legBack, 'top');
-      backLegPivot.add(backLegMesh);
-      root.add(backLegPivot);
+      // 2. Голова (идеальный круг Stick War)
+      const headGeo = new THREE.CircleGeometry(11, 24);
+      const head = new THREE.Mesh(headGeo, mat);
+      head.position.set(0, 11, 0.05);
+      bodyGroup.add(head);
 
-      const frontLegPivot = new THREE.Group();
-      frontLegPivot.position.set(cfg.legFront.x, cfg.legFront.y, 0.03);
-      const frontLegMesh = createSquareBone(cfg.legFront.size, mats.legFront, 'top');
-      frontLegPivot.add(frontLegMesh);
-      root.add(frontLegPivot);
+      // Алый глаз для врагов
+      let eyeMesh: THREE.Mesh | undefined;
+      if (isEnemy) {
+        const eyeGeo = new THREE.CircleGeometry(2.5, 12);
+        eyeMesh = new THREE.Mesh(eyeGeo, eyeMat);
+        eyeMesh.position.set(4, 2, 0.06);
+        head.add(eyeMesh);
+      }
 
-      // 4. РУКИ (за верхний край квадрата, общий центр плеча)
-      const backArmPivot = new THREE.Group();
-      backArmPivot.position.set(cfg.armBack.x, cfg.armBack.y, -0.04);
-      const backArmMesh = createSquareBone(cfg.armBack.size, mats.armBack, 'top');
-      backArmPivot.add(backArmMesh);
-      torso.add(backArmPivot);
+      // 3. Руки (Плечо ➔ Локоть ➔ Меч)
+      // Левая рука (задняя)
+      const armL = new THREE.Group();
+      armL.position.set(0, 0, -0.05);
+      const upperArmL = createLimbSegment(16, 4.5, mat);
+      armL.add(upperArmL);
+      const forearmL = createLimbSegment(16, 4, mat);
+      forearmL.position.set(0, -16, 0);
+      armL.add(forearmL);
+      bodyGroup.add(armL);
 
-      const frontArmPivot = new THREE.Group();
-      frontArmPivot.position.set(cfg.armFront.x, cfg.armFront.y, 0.06);
-      const frontArmMesh = createSquareBone(cfg.armFront.size, mats.armFront, 'top');
-      frontArmPivot.add(frontArmMesh);
+      // Правая рука (передняя с клинком)
+      const armR = new THREE.Group();
+      armR.position.set(0, 0, 0.05);
+      const upperArmR = createLimbSegment(16, 4.5, mat);
+      armR.add(upperArmR);
+      const forearmR = createLimbSegment(16, 4, mat);
+      forearmR.position.set(0, -16, 0);
+      armR.add(forearmR);
 
-      // 5. МЕЧ (ПОД РУКОЙ, Z = -0.01)
-      const sword = createSquareBone(cfg.sword.size, mats.sword, 'bottom');
-      sword.position.set(cfg.sword.x, cfg.sword.y, -0.01);
-      sword.rotation.z = (cfg.sword.rot * Math.PI) / 180;
-      frontArmPivot.add(sword);
+      // Меч в руке (Swordwrath Blade)
+      const swordGroup = new THREE.Group();
+      swordGroup.position.set(0, -16, 0.02);
+      const bladeGeo = new THREE.PlaneGeometry(5.5, 36);
+      bladeGeo.translate(0, 18, 0);
+      const blade = new THREE.Mesh(bladeGeo, swordMat);
+      const hiltGeo = new THREE.PlaneGeometry(12, 3.5);
+      const hilt = new THREE.Mesh(hiltGeo, hiltMat);
+      swordGroup.add(blade);
+      swordGroup.add(hilt);
+      swordGroup.rotation.z = Math.PI / 4;
+      forearmR.add(swordGroup);
 
-      torso.add(frontArmPivot);
+      bodyGroup.add(armR);
 
-      // HP полоска
-      const hpBarGeo = new THREE.PlaneGeometry(36, 5);
+      // 4. Ноги (Бедро ➔ Колено/Голень)
+      // Левая нога (задняя)
+      const legL = new THREE.Group();
+      legL.position.set(0, 22, -0.05);
+      const thighL = createLimbSegment(20, 5, mat);
+      legL.add(thighL);
+      const shinL = createLimbSegment(22, 4.5, mat);
+      shinL.position.set(0, -20, 0);
+      legL.add(shinL);
+      root.add(legL);
+
+      // Правая нога (передняя)
+      const legR = new THREE.Group();
+      legR.position.set(0, 22, 0.05);
+      const thighR = createLimbSegment(20, 5, mat);
+      legR.add(thighR);
+      const shinR = createLimbSegment(22, 4.5, mat);
+      shinR.position.set(0, -20, 0);
+      legR.add(shinR);
+      root.add(legR);
+
+      // Полоска HP
+      const hpBarGeo = new THREE.PlaneGeometry(28, 4);
       const hpBarMat = new THREE.MeshBasicMaterial({ color: isEnemy ? '#e53935' : '#43a047' });
       const hpBar = new THREE.Mesh(hpBarGeo, hpBarMat);
-      hpBar.position.set(0, cfg.torso.y + cfg.head.size + 15, 0.1);
+      hpBar.position.set(0, 75, 0.2);
       root.add(hpBar);
 
       scene.add(root);
 
-      const newUnit: UnitInstance = {
+      const unit: UnitInstance = {
         id: ++unitIdCounter,
         isEnemy,
-        group: root,
-        parts: {
-          torso,
+        limbs: {
+          root,
+          bodyGroup,
           head,
-          armF: frontArmPivot,
-          armB: backArmPivot,
-          legF: frontLegPivot,
-          legB: backLegPivot,
-          sword
+          eye: eyeMesh,
+          spine,
+          armL,
+          forearmL,
+          armR,
+          forearmR,
+          sword: swordGroup as unknown as THREE.Mesh,
+          legL,
+          shinL,
+          legR,
+          shinR
         },
         row,
         rankCol,
-        hp: 120,
-        maxHp: 120,
-        speed: 1.3,
+        hp: 100,
+        maxHp: 100,
+        speed: 1.5,
         state: 'walk',
         attackTimer: 0,
         walkTimer: 0,
         hpBar
       };
 
-      allUnits.push(newUnit);
-      return newUnit;
+      allUnits.push(unit);
+      return unit;
     };
 
-    // Спавн далеко за экраном
+    // Спавн слева за экраном
     spawnUnitRef.current = (isEnemy: boolean) => {
       const alliesCount = allUnits.filter((u) => !u.isEnemy).length;
       const enemiesCount = allUnits.filter((u) => u.isEnemy).length;
       const rankIdx = isEnemy ? enemiesCount : alliesCount;
 
       const spawnX = isEnemy
-        ? WORLD_TOTAL_WIDTH / 2 + 120
-        : -WORLD_TOTAL_WIDTH / 2 - 140;
+        ? WORLD_TOTAL_WIDTH / 2 + 100
+        : -WORLD_TOTAL_WIDTH / 2 - 120;
 
-      buildRiggedKnight(isEnemy, rankIdx, spawnX);
+      buildStickman(isEnemy, rankIdx, spawnX);
     };
 
-    // Спавн врагов для теста боя
-    const enemySpawnInterval = setInterval(() => {
-      if (allUnits.filter((u) => u.isEnemy).length < 8) {
+    // Спавн врагов для теста битвы
+    const enemyTimer = setInterval(() => {
+      if (allUnits.filter((u) => u.isEnemy && u.state !== 'dead').length < 8) {
         spawnUnitRef.current(true);
       }
-    }, 9000);
+    }, 8500);
 
     // ==========================================
-    // 8. СВАЙПЫ КАМЕРЫ (СТАРТ СЛЕВА)
+    // 7. СВАЙПЫ КАМЕРЫ
     // ==========================================
     const halfWorld = WORLD_TOTAL_WIDTH / 2;
     const minCamX = -halfWorld + viewWidth / 2;
@@ -457,7 +416,7 @@ export const GameStage: React.FC = () => {
     window.addEventListener('resize', handleResize);
 
     // ==========================================
-    // 9. АНИМАЦИИ: 2 АТАКИ, ХОДЬБА, СТОЙКА
+    // 8. ЦИКЛ АНИМАЦИИ И ФИЗИКИ СТИКМЕНОВ
     // ==========================================
     let animId: number;
     let lastTime = performance.now();
@@ -484,16 +443,16 @@ export const GameStage: React.FC = () => {
         let minDist = 99999;
 
         for (const opp of opponentList) {
-          const d = Math.abs(opp.group.position.x - u.group.position.x);
+          const d = Math.abs(opp.limbs.root.position.x - u.limbs.root.position.x);
           if (d < minDist) {
             minDist = d;
             nearestTarget = opp;
           }
         }
 
-        const ATTACK_RANGE = 62;
+        const ATTACK_RANGE = 58;
 
-        // ПРОВЕРКА БОЯ
+        // 1. Поведение ИИ и команд
         if (nearestTarget && minDist <= ATTACK_RANGE) {
           if (u.state !== 'attack1' && u.state !== 'attack2') {
             u.state = Math.random() > 0.5 ? 'attack1' : 'attack2';
@@ -501,25 +460,25 @@ export const GameStage: React.FC = () => {
           }
         } else {
           if (u.isEnemy) {
-            u.group.position.x -= u.speed;
+            u.limbs.root.position.x -= u.speed;
             u.state = 'walk';
           } else {
             if (curCmd === 'attack') {
-              u.group.position.x += u.speed;
+              u.limbs.root.position.x += u.speed;
               u.state = 'walk';
             } else if (curCmd === 'defend') {
               const targetSlotX = -WORLD_TOTAL_WIDTH / 2 + 500 + u.rankCol * 48;
-              const diff = targetSlotX - u.group.position.x;
+              const diff = targetSlotX - u.limbs.root.position.x;
               if (Math.abs(diff) > 8) {
-                u.group.position.x += Math.sign(diff) * u.speed;
+                u.limbs.root.position.x += Math.sign(diff) * u.speed;
                 u.state = 'walk';
               } else {
                 u.state = 'idle';
               }
             } else if (curCmd === 'retreat') {
               const castleDoorX = -WORLD_TOTAL_WIDTH / 2 + 100;
-              if (u.group.position.x > castleDoorX) {
-                u.group.position.x -= u.speed * 1.4;
+              if (u.limbs.root.position.x > castleDoorX) {
+                u.limbs.root.position.x -= u.speed * 1.4;
                 u.state = 'walk';
               } else {
                 u.state = 'idle';
@@ -528,43 +487,75 @@ export const GameStage: React.FC = () => {
           }
         }
 
-        // РЕНДЕР АНИМАЦИИ
-        const baseTorsoY = rigRef.current.torso.y;
-        const defaultSwordRot = (rigRef.current.sword.rot * Math.PI) / 180;
+        // ==========================================
+        // 2. ВЕКТОРНАЯ АНИМАЦИЯ СУСТАВОВ
+        // ==========================================
+        const limbs = u.limbs;
 
         if (u.state === 'walk') {
-          u.walkTimer += delta * 7.5;
-          const swing = Math.sin(u.walkTimer);
+          // Бег Stick War: наклон тела вперед, энергичные шаги
+          u.walkTimer += delta * 9;
+          const cycle = u.walkTimer;
+          const swing = Math.sin(cycle);
 
-          u.parts.legF.rotation.z = swing * 0.55;
-          u.parts.legB.rotation.z = -swing * 0.55;
-          u.parts.armF.rotation.z = -swing * 0.45;
-          u.parts.armB.rotation.z = swing * 0.45;
-          u.parts.torso.position.y = baseTorsoY + Math.abs(swing) * 3;
-          u.parts.sword.rotation.z = defaultSwordRot + swing * 0.12;
+          limbs.bodyGroup.rotation.z = 0.22; // Наклон корпуса вперед
+          limbs.head.rotation.z = -0.1;
+
+          // Размах бедер
+          limbs.legL.rotation.z = swing * 0.75;
+          limbs.legR.rotation.z = -swing * 0.75;
+
+          // Сгиб коленей (реалистичный бег)
+          limbs.shinL.rotation.z = swing > 0 ? swing * 0.9 : 0;
+          limbs.shinR.rotation.z = swing < 0 ? -swing * 0.9 : 0;
+
+          // Движение рук
+          limbs.armL.rotation.z = -swing * 0.7;
+          limbs.forearmL.rotation.z = -0.4;
+          limbs.armR.rotation.z = swing * 0.7 - 0.4;
+          limbs.forearmR.rotation.z = -0.3;
 
         } else if (u.state === 'idle') {
-          const breathe = Math.sin(now * 0.003 + u.id);
-          u.parts.legF.rotation.z = 0.04;
-          u.parts.legB.rotation.z = -0.04;
-          u.parts.armF.rotation.z = -0.1 + breathe * 0.04;
-          u.parts.armB.rotation.z = 0.1 - breathe * 0.04;
-          u.parts.torso.position.y = baseTorsoY + breathe * 1.5;
-          u.parts.sword.rotation.z = defaultSwordRot + breathe * 0.05;
+          // Боевая стойка: легкое пружинящее дыхание
+          const breathe = Math.sin(now * 0.004 + u.id);
+
+          limbs.bodyGroup.rotation.z = 0.05;
+          limbs.head.rotation.z = breathe * 0.03;
+
+          limbs.legL.rotation.z = 0.2;
+          limbs.shinL.rotation.z = -0.2;
+          limbs.legR.rotation.z = -0.2;
+          limbs.shinR.rotation.z = 0.2;
+
+          limbs.armL.rotation.z = 0.3 + breathe * 0.05;
+          limbs.forearmL.rotation.z = -0.5;
+          limbs.armR.rotation.z = -0.4 + breathe * 0.05;
+          limbs.forearmR.rotation.z = -0.6;
 
         } else if (u.state === 'attack1') {
-          // АТАКА 1: РУБЯЩИЙ УДАР
+          // АТАКА 1: Сокрушительный рубящий замах сверху
           u.attackTimer += delta * 4;
           const t = u.attackTimer;
 
-          if (t < 0.4) {
-            u.parts.armF.rotation.z = -1.2;
-            u.parts.sword.rotation.z = 0.8;
+          if (t < 0.35) {
+            // Замах обеими руками назад-вверх
+            limbs.bodyGroup.rotation.z = -0.25;
+            limbs.armR.rotation.z = -2.1;
+            limbs.forearmR.rotation.z = -0.8;
+            limbs.armL.rotation.z = -1.8;
+            limbs.legR.rotation.z = -0.4;
+            limbs.shinR.rotation.z = 0.6;
           } else if (t < 0.7) {
-            u.parts.armF.rotation.z = 0.7;
-            u.parts.sword.rotation.z = -1.2;
-            if (nearestTarget && t < 0.48) {
-              nearestTarget.hp -= 0.6;
+            // Резкий мощный удар вниз
+            limbs.bodyGroup.rotation.z = 0.35;
+            limbs.armR.rotation.z = 1.1;
+            limbs.forearmR.rotation.z = 0.2;
+            limbs.armL.rotation.z = 0.8;
+            limbs.legR.rotation.z = 0.4;
+            limbs.shinR.rotation.z = 0.1;
+
+            if (nearestTarget && t < 0.45) {
+              nearestTarget.hp -= 0.7;
               nearestTarget.hpBar.scale.x = Math.max(0, nearestTarget.hp / nearestTarget.maxHp);
             }
           } else {
@@ -572,18 +563,25 @@ export const GameStage: React.FC = () => {
           }
 
         } else if (u.state === 'attack2') {
-          // АТАКА 2: КОЛЮЩИЙ ВЫПАД
-          u.attackTimer += delta * 4.5;
+          // АТАКА 2: Быстрый колющий выпад вперед
+          u.attackTimer += delta * 5;
           const t = u.attackTimer;
 
           if (t < 0.3) {
-            u.parts.armF.rotation.z = -0.5;
-            u.parts.sword.rotation.z = -0.2;
+            // Оттяжка корпуса назад
+            limbs.bodyGroup.rotation.z = -0.15;
+            limbs.armR.rotation.z = -0.8;
+            limbs.forearmR.rotation.z = -1.2;
           } else if (t < 0.65) {
-            u.parts.armF.rotation.z = 0.9;
-            u.parts.sword.rotation.z = -1.55;
+            // Выпад мечом прямо вперед
+            limbs.bodyGroup.rotation.z = 0.4;
+            limbs.armR.rotation.z = 1.45;
+            limbs.forearmR.rotation.z = 0.05;
+            limbs.legR.rotation.z = 0.6;
+            limbs.shinR.rotation.z = -0.4;
+
             if (nearestTarget && t < 0.4) {
-              nearestTarget.hp -= 0.75;
+              nearestTarget.hp -= 0.85;
               nearestTarget.hpBar.scale.x = Math.max(0, nearestTarget.hp / nearestTarget.maxHp);
             }
           } else {
@@ -591,10 +589,10 @@ export const GameStage: React.FC = () => {
           }
         }
 
-        // Удаление погибших юнитов (исправлено на строке 613)
+        // Гибель воина
         if (u.hp <= 0) {
           u.state = 'dead';
-          scene.remove(u.group);
+          scene.remove(u.limbs.root);
           if (!u.isEnemy) setPop((p) => Math.max(0, p - 1));
         }
       }
@@ -605,7 +603,7 @@ export const GameStage: React.FC = () => {
 
     return () => {
       cancelAnimationFrame(animId);
-      clearInterval(enemySpawnInterval);
+      clearInterval(enemyTimer);
       window.removeEventListener('resize', handleResize);
       window.removeEventListener('pointerdown', onPointerDown);
       window.removeEventListener('pointermove', onPointerMove);
@@ -618,35 +616,15 @@ export const GameStage: React.FC = () => {
     };
   }, []);
 
-  const handleQueueWarrior = () => {
-    setTrainQueue((q) => q + 1);
-  };
-
-  const handleCopyRig = () => {
-    navigator.clipboard.writeText(JSON.stringify(rig, null, 2));
-    setCopySuccess(true);
-    setTimeout(() => setCopySuccess(false), 2000);
-  };
-
   return (
     <div style={styles.stageContainer}>
       <div ref={mountRef} style={{ width: '100%', height: '100%', touchAction: 'none' }} />
 
       {/* ==========================================
-          ВЕРХНЯЯ ПАНЕЛЬ: ЗОЛОТО + ЮНИТЫ + ОЧЕРЕДЬ
+          ВЕРХНИЙ ХУД STICK WAR: ЗОЛОТО + ЮНИТЫ
           ========================================== */}
       <div style={styles.topHud}>
-        <button
-          className="hud-element"
-          onClick={() => setShowEditor(!showEditor)}
-          style={{
-            ...styles.editorToggleBtn,
-            backgroundColor: showEditor ? '#e53935' : '#1e88e5'
-          }}
-        >
-          {showEditor ? '✕ CLOSE RIG' : '🦴 RIG EDITOR'}
-        </button>
-
+        {/* Панель ресурсов */}
         <div className="hud-element" style={styles.statPanel}>
           <div style={styles.statItem}>
             <span>🪙</span>
@@ -659,11 +637,12 @@ export const GameStage: React.FC = () => {
           </div>
         </div>
 
+        {/* Круглые иконки юнитов */}
         <div style={styles.summonRow}>
           {/* 1. WARRIOR */}
           <button
             className="hud-element"
-            onClick={handleQueueWarrior}
+            onClick={() => setTrainQueue((q) => q + 1)}
             style={styles.stickWarCard}
           >
             <img
@@ -674,6 +653,7 @@ export const GameStage: React.FC = () => {
             />
             <span style={styles.cardCost}>125</span>
 
+            {/* Прогресс тренировки */}
             {trainQueue > 0 && (
               <div
                 style={{
@@ -683,6 +663,7 @@ export const GameStage: React.FC = () => {
               />
             )}
 
+            {/* Счетчик очереди (x2, x3...) */}
             {trainQueue > 0 && (
               <div style={styles.queueBadge}>
                 {trainQueue}
@@ -715,7 +696,7 @@ export const GameStage: React.FC = () => {
       </div>
 
       {/* ==========================================
-          КОМАНДНЫЙ ПОЛУКРУГ STICK WAR
+          КОМАНДНЫЙ ПОЛУКРУГ STICK WAR (СПРАВА)
           ========================================== */}
       <div style={styles.wheelPlate}>
         <button
@@ -757,69 +738,6 @@ export const GameStage: React.FC = () => {
           <span style={styles.wheelLabel}>ATTACK</span>
         </button>
       </div>
-
-      {/* ==========================================
-          РЕЖИМ РЕДАКТИРОВАНИЯ КОСТЕЙ
-          ========================================== */}
-      {showEditor && (
-        <div style={styles.editorPanel}>
-          <div style={styles.editorHeader}>
-            <span style={{ fontWeight: 900 }}>🦴 RIG EDITOR</span>
-            <button
-              onClick={handleCopyRig}
-              style={styles.copyBtn}
-            >
-              {copySuccess ? '✓ COPIED!' : '📋 COPY CONFIG'}
-            </button>
-          </div>
-
-          <div style={styles.editorScrollArea}>
-            {(['head', 'torso', 'armFront', 'armBack', 'legFront', 'legBack'] as const).map((bone) => (
-              <div key={bone} style={styles.editorRow}>
-                <span style={styles.boneName}>{bone.toUpperCase()}</span>
-                <div style={styles.sliderGroup}>
-                  <label>X: {rig[bone].x}</label>
-                  <input
-                    type="range" min="-40" max="40" value={rig[bone].x}
-                    onChange={(e) => setRig({ ...rig, [bone]: { ...rig[bone], x: +e.target.value } })}
-                  />
-                  <label>Y: {rig[bone].y}</label>
-                  <input
-                    type="range" min="0" max="80" value={rig[bone].y}
-                    onChange={(e) => setRig({ ...rig, [bone]: { ...rig[bone], y: +e.target.value } })}
-                  />
-                  <label>S: {rig[bone].size}</label>
-                  <input
-                    type="range" min="30" max="130" value={rig[bone].size}
-                    onChange={(e) => setRig({ ...rig, [bone]: { ...rig[bone], size: +e.target.value } })}
-                  />
-                </div>
-              </div>
-            ))}
-
-            <div style={styles.editorRow}>
-              <span style={styles.boneName}>SWORD</span>
-              <div style={styles.sliderGroup}>
-                <label>X: {rig.sword.x}</label>
-                <input
-                  type="range" min="-40" max="40" value={rig.sword.x}
-                  onChange={(e) => setRig({ ...rig, sword: { ...rig.sword, x: +e.target.value } })}
-                />
-                <label>Y: {rig.sword.y}</label>
-                <input
-                  type="range" min="-60" max="20" value={rig.sword.y}
-                  onChange={(e) => setRig({ ...rig, sword: { ...rig.sword, y: +e.target.value } })}
-                />
-                <label>ROT: {rig.sword.rot}°</label>
-                <input
-                  type="range" min="-180" max="180" value={rig.sword.rot}
-                  onChange={(e) => setRig({ ...rig, sword: { ...rig.sword, rot: +e.target.value } })}
-                />
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 };
@@ -839,16 +757,6 @@ const styles: Record<string, React.CSSProperties> = {
     display: 'flex',
     alignItems: 'center',
     gap: '12px'
-  },
-  editorToggleBtn: {
-    color: '#ffffff',
-    fontSize: '11px',
-    fontWeight: 900,
-    padding: '8px 12px',
-    borderRadius: '10px',
-    border: '2px solid #ffffff',
-    cursor: 'pointer',
-    letterSpacing: '1px'
   },
   statPanel: {
     display: 'flex',
@@ -968,65 +876,5 @@ const styles: Record<string, React.CSSProperties> = {
     fontSize: '8px',
     fontWeight: 900,
     letterSpacing: '0.5px'
-  },
-  editorPanel: {
-    position: 'absolute',
-    top: '64px',
-    right: '85px',
-    width: '320px',
-    maxHeight: '75vh',
-    backgroundColor: 'rgba(18, 18, 18, 0.94)',
-    border: '2px solid #29b6f6',
-    borderRadius: '12px',
-    zIndex: 1000,
-    padding: '12px',
-    color: '#ffffff',
-    display: 'flex',
-    flexDirection: 'column',
-    gap: '8px',
-    boxShadow: '0 8px 24px rgba(0,0,0,0.8)'
-  },
-  editorHeader: {
-    display: 'flex',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    borderBottom: '1px solid #333',
-    paddingBottom: '6px'
-  },
-  copyBtn: {
-    backgroundColor: '#00c853',
-    color: '#ffffff',
-    fontSize: '10px',
-    fontWeight: 900,
-    padding: '4px 8px',
-    borderRadius: '6px',
-    border: 'none',
-    cursor: 'pointer'
-  },
-  editorScrollArea: {
-    overflowY: 'auto',
-    display: 'flex',
-    flexDirection: 'column',
-    gap: '8px',
-    paddingRight: '4px'
-  },
-  editorRow: {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: '2px',
-    backgroundColor: '#262626',
-    padding: '6px',
-    borderRadius: '6px'
-  },
-  boneName: {
-    fontSize: '10px',
-    fontWeight: 900,
-    color: '#4fc3f7'
-  },
-  sliderGroup: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: '6px',
-    fontSize: '10px'
   }
 };
