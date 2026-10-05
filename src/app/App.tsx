@@ -25,28 +25,13 @@ const LandscapeGuard: React.FC<{ isPortrait: boolean }> = ({ isPortrait }) => {
 };
 
 // ==========================================
-// 2. ЭКРАН ЗАГРУЗКИ
+// 2. ЭКРАН ЗАГРУЗКИ (ТОЛЬКО В ГОРИЗОНТАЛИ)
 // ==========================================
 const LoadingScreen: React.FC<{ onLoaded: () => void; isPortrait: boolean }> = ({ onLoaded, isPortrait }) => {
   const [progress, setProgress] = useState(0);
 
   useEffect(() => {
     if (isPortrait) return;
-
-    const assets = [
-      '/MainMenuBackground.png',
-      '/RiccarLogo.png',
-      '/play.png',
-      '/shop.png',
-      '/chests.png',
-      '/solo.png',
-      '/duo.png'
-    ];
-
-    assets.forEach((src) => {
-      const img = new Image();
-      img.src = src;
-    });
 
     const timer = setInterval(() => {
       setProgress((prev) => {
@@ -55,9 +40,9 @@ const LoadingScreen: React.FC<{ onLoaded: () => void; isPortrait: boolean }> = (
           setTimeout(onLoaded, 250);
           return 100;
         }
-        return prev + 1;
+        return prev + 2;
       });
-    }, 18);
+    }, 16);
 
     return () => clearInterval(timer);
   }, [isPortrait, onLoaded]);
@@ -112,7 +97,7 @@ const MenuButton: React.FC<{ src: string; alt: string; onClick?: () => void }> =
 };
 
 // ==========================================
-// 4. СТВОРКА РЕЖИМА НА ВЕСЬ ЭКРАН (ПОЛОВИНА 50%)
+// 4. СТВОРКА РЕЖИМА НА ВЕСЬ ЭКРАН (50/50)
 // ==========================================
 const FullscreenModeHalf: React.FC<{
   side: 'left' | 'right';
@@ -154,14 +139,13 @@ const FullscreenModeHalf: React.FC<{
 // ==========================================
 // 5. ГЛАВНОЕ МЕНЮ
 // ==========================================
-const MainMenu: React.FC = () => {
+const MainMenu: React.FC<{ onStartSolo: () => void }> = ({ onStartSolo }) => {
   const [modesOpen, setModesOpen] = useState(false);
 
   return (
     <div style={styles.menuContainer}>
       <img src="/MainMenuBackground.png" alt="BG" style={styles.menuBg} draggable={false} />
       
-      {/* Главное меню */}
       <div style={styles.centerBlock}>
         <img src="/RiccarLogo.png" alt="RICAREE" style={styles.menuLogo} draggable={false} />
 
@@ -172,12 +156,8 @@ const MainMenu: React.FC = () => {
         </div>
       </div>
 
-      {/* КНОПКА ЗАКРЫТИЯ ВЫБОРА РЕЖИМА */}
       {modesOpen && (
-        <button
-          onClick={() => setModesOpen(false)}
-          style={styles.closeBtn}
-        >
+        <button onClick={() => setModesOpen(false)} style={styles.closeBtn}>
           ✕ BACK
         </button>
       )}
@@ -188,7 +168,7 @@ const MainMenu: React.FC = () => {
         imgSrc="/solo.png"
         alt="SOLO"
         isOpen={modesOpen}
-        onSelect={() => console.log('SOLO CHOSEN')}
+        onSelect={onStartSolo}
       />
 
       {/* СПРАВА — DUO */}
@@ -197,7 +177,7 @@ const MainMenu: React.FC = () => {
         imgSrc="/duo.png"
         alt="DUO"
         isOpen={modesOpen}
-        onSelect={() => console.log('DUO CHOSEN')}
+        onSelect={() => console.log('DUO')}
       />
     </div>
   );
@@ -206,11 +186,13 @@ const MainMenu: React.FC = () => {
 // ==========================================
 // 6. APP ROOT
 // ==========================================
-type ScreenState = 'loading' | 'menu' | 'battle';
+type ScreenState = 'init_loading' | 'menu' | 'battle_loading' | 'battle';
 
 const App: React.FC = () => {
-  const [screen, setScreen] = useState<ScreenState>('loading');
+  const [screen, setScreen] = useState<ScreenState>('init_loading');
   const [isPortrait, setIsPortrait] = useState<boolean>(checkIsPortrait);
+  const [isFadingToBlack, setIsFadingToBlack] = useState<boolean>(false);
+  const [isRevealingGame, setIsRevealingGame] = useState<boolean>(false);
 
   useEffect(() => {
     const handleResize = () => {
@@ -225,6 +207,25 @@ const App: React.FC = () => {
       window.removeEventListener('orientationchange', handleResize);
     };
   }, []);
+
+  // Переход при клике на SOLO: затемнение -> лоадер -> растемнение -> игра
+  const handleStartSolo = () => {
+    setIsFadingToBlack(true);
+    setTimeout(() => {
+      setScreen('battle_loading');
+      setIsFadingToBlack(false);
+    }, 400);
+  };
+
+  const handleBattleLoaded = () => {
+    setIsFadingToBlack(true);
+    setTimeout(() => {
+      setScreen('battle');
+      setIsFadingToBlack(false);
+      setIsRevealingGame(true);
+      setTimeout(() => setIsRevealingGame(false), 400);
+    }, 300);
+  };
 
   return (
     <main style={styles.root}>
@@ -245,19 +246,39 @@ const App: React.FC = () => {
 
       <LandscapeGuard isPortrait={isPortrait} />
 
-      {screen === 'loading' && (
+      {screen === 'init_loading' && (
         <LoadingScreen onLoaded={() => setScreen('menu')} isPortrait={isPortrait} />
       )}
 
-      {screen === 'menu' && <MainMenu />}
+      {screen === 'menu' && <MainMenu onStartSolo={handleStartSolo} />}
 
-      {screen === 'battle' && <GameStage />}
+      {screen === 'battle_loading' && (
+        <LoadingScreen onLoaded={handleBattleLoaded} isPortrait={isPortrait} />
+      )}
+
+      {screen === 'battle' && (
+        <div style={{ width: '100%', height: '100%', position: 'relative' }}>
+          <GameStage />
+          <button onClick={() => setScreen('menu')} style={styles.inGameBackBtn}>
+            ← MENU
+          </button>
+        </div>
+      )}
+
+      {/* Черный экран для плавного затемнения */}
+      <div 
+        style={{
+          ...styles.fadeCurtain,
+          opacity: isFadingToBlack || isRevealingGame ? 1 : 0,
+          pointerEvents: isFadingToBlack || isRevealingGame ? 'all' : 'none'
+        }} 
+      />
     </main>
   );
 };
 
 // ==========================================
-// СТИЛИ (ПОЛНОЭКРАННЫЕ СТВОРКИ 50/50)
+// СТИЛИ
 // ==========================================
 const styles: Record<string, React.CSSProperties> = {
   root: {
@@ -268,7 +289,13 @@ const styles: Record<string, React.CSSProperties> = {
     backgroundColor: '#000000',
     fontFamily: '-apple-system, sans-serif'
   },
-  // Guard
+  fadeCurtain: {
+    position: 'fixed',
+    inset: 0,
+    backgroundColor: '#000000',
+    zIndex: 99998,
+    transition: 'opacity 0.4s ease-in-out'
+  },
   guardOverlay: {
     position: 'fixed',
     inset: 0,
@@ -296,7 +323,6 @@ const styles: Record<string, React.CSSProperties> = {
     color: '#9e898b',
     fontSize: '13px'
   },
-  // Loading
   loadingContainer: {
     position: 'fixed',
     inset: 0,
@@ -350,7 +376,6 @@ const styles: Record<string, React.CSSProperties> = {
     backgroundColor: '#b81e18',
     transition: 'width 0.08s linear'
   },
-  // Menu
   menuContainer: {
     position: 'relative',
     width: '100vw',
@@ -411,7 +436,6 @@ const styles: Record<string, React.CSSProperties> = {
     objectFit: 'contain',
     pointerEvents: 'none'
   },
-  // ПОЛНОЭКРАННЫЕ СТВОРКИ (50% ШИРИНЫ НА 100% ВЫСОТЫ)
   fullscreenHalf: {
     position: 'absolute',
     top: 0,
@@ -447,6 +471,21 @@ const styles: Record<string, React.CSSProperties> = {
     borderRadius: '8px',
     border: '1.5px solid #444444',
     cursor: 'pointer'
+  },
+  inGameBackBtn: {
+    position: 'absolute',
+    top: '16px',
+    left: '16px',
+    zIndex: 100,
+    color: '#ffffff',
+    fontSize: '12px',
+    fontWeight: 900,
+    padding: '8px 14px',
+    backgroundColor: 'rgba(0, 0, 0, 0.65)',
+    border: '1.5px solid #444444',
+    borderRadius: '8px',
+    cursor: 'pointer',
+    letterSpacing: '1px'
   }
 };
 
