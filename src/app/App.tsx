@@ -8,7 +8,7 @@ const checkIsPortrait = () => {
 };
 
 // ==========================================
-// 1. БЛОКИРОВЩИК ПОВОРОТА ЭКРАНА
+// 1. ПОВОРОТ ЭКРАНА
 // ==========================================
 const LandscapeGuard: React.FC<{ isPortrait: boolean }> = ({ isPortrait }) => {
   if (!isPortrait) return null;
@@ -16,9 +16,7 @@ const LandscapeGuard: React.FC<{ isPortrait: boolean }> = ({ isPortrait }) => {
   return (
     <div style={styles.guardOverlay}>
       <div style={styles.guardCard}>
-        <div style={styles.guardIconWrap}>
-          <Smartphone size={56} color="#ffffff" strokeWidth={1.8} />
-        </div>
+        <Smartphone size={56} color="#ffffff" strokeWidth={1.8} />
         <h2 style={styles.guardTitle}>RICAREE!</h2>
         <p style={styles.guardDesc}>PLEASE ROTATE YOUR DEVICE</p>
       </div>
@@ -27,7 +25,7 @@ const LandscapeGuard: React.FC<{ isPortrait: boolean }> = ({ isPortrait }) => {
 };
 
 // ==========================================
-// 2. ЭКРАН ЗАГРУЗКИ
+// 2. ЭКРАН ЗАГРУЗКИ (ТОЛЬКО В ГОРИЗОНТАЛИ)
 // ==========================================
 const LoadingScreen: React.FC<{ onLoaded: () => void; isPortrait: boolean }> = ({ onLoaded, isPortrait }) => {
   const [progress, setProgress] = useState(0);
@@ -52,7 +50,7 @@ const LoadingScreen: React.FC<{ onLoaded: () => void; isPortrait: boolean }> = (
       setProgress((prev) => {
         if (prev >= 100) {
           clearInterval(timer);
-          setTimeout(onLoaded, 300);
+          setTimeout(onLoaded, 250);
           return 100;
         }
         return prev + 1;
@@ -65,26 +63,21 @@ const LoadingScreen: React.FC<{ onLoaded: () => void; isPortrait: boolean }> = (
   return (
     <div style={styles.loadingContainer}>
       <div style={styles.loadingCenter}>
-        <div style={styles.giantLogoBox}>
-          <img src="/RiccarLogo.png" alt="Logo" style={styles.giantLogoBase} draggable={false} />
+        <div style={styles.loadingLogoBox}>
+          <img src="/RiccarLogo.png" alt="Logo" style={styles.loadingLogoBase} draggable={false} />
           <img 
             src="/RiccarLogo.png" 
-            alt="Logo Fill" 
+            alt="Logo" 
             style={{
-              ...styles.giantLogoActive,
+              ...styles.loadingLogoActive,
               clipPath: `inset(${100 - progress}% 0 0 0)`
             }} 
             draggable={false} 
           />
         </div>
 
-        <div style={styles.slimProgressBox}>
-          <div style={styles.slimProgressTrack}>
-            <div style={{ ...styles.slimProgressFill, width: `${progress}%` }} />
-          </div>
-          <span style={styles.slimProgressText}>
-            {isPortrait ? 'ROTATE TO START' : `LOADING ${progress}%`}
-          </span>
+        <div style={styles.progressTrack}>
+          <div style={{ ...styles.progressFill, width: `${progress}%` }} />
         </div>
       </div>
     </div>
@@ -92,9 +85,9 @@ const LoadingScreen: React.FC<{ onLoaded: () => void; isPortrait: boolean }> = (
 };
 
 // ==========================================
-// 3. PNG КНОПКА (БЕЗ РАМОК, КВАДРАТОВ И ТЕНЕЙ)
+// 3. КНОПКА (БЕЗ СВЕЧЕНИЯ, БЕЗ ТЕНЕЙ, ЧИСТЫЙ ТАП)
 // ==========================================
-const PngButton: React.FC<{ src: string; alt: string }> = ({ src, alt }) => {
+const MenuButton: React.FC<{ src: string; alt: string }> = ({ src, alt }) => {
   const [pressed, setPressed] = useState(false);
 
   return (
@@ -104,42 +97,40 @@ const PngButton: React.FC<{ src: string; alt: string }> = ({ src, alt }) => {
       onPointerLeave={() => setPressed(false)}
       onPointerCancel={() => setPressed(false)}
       style={{
-        ...styles.pngBtnWrap,
-        transform: pressed ? 'scale(0.96) translateY(2px)' : 'scale(1)',
-        // Только чистая яркость без теней и свечений вокруг
-        filter: pressed ? 'brightness(1.2)' : 'none'
+        ...styles.btn,
+        transform: pressed ? 'translateY(3px) scale(0.97)' : 'none'
       }}
     >
-      <img src={src} alt={alt} style={styles.pngBtnImg} draggable={false} />
+      <img src={src} alt={alt} style={styles.btnImg} draggable={false} />
     </button>
   );
 };
 
 // ==========================================
-// 4. ГЛАВНОЕ МЕНЮ (ЧИСТАЯ 2D ГРАФИКА)
+// 4. ГЛАВНОЕ МЕНЮ (ТОЧНО ПО РЕФЕРЕНСУ)
 // ==========================================
 const MainMenu: React.FC = () => {
   return (
     <div style={styles.menuContainer}>
+      {/* Чистый фон */}
       <img src="/MainMenuBackground.png" alt="BG" style={styles.menuBg} draggable={false} />
       
-      {/* 1. ЕЩЁ БОЛЕЕ ОГРОМНЫЙ ЛОГОТИП */}
-      <div style={styles.logoAnchor}>
-        <img src="/RiccarLogo.png" alt="RICAREE" style={styles.hugeMenuLogo} draggable={false} />
-      </div>
+      {/* Единый центральный блок: Огромное лого прямо над кнопками */}
+      <div style={styles.centerBlock}>
+        <img src="/RiccarLogo.png" alt="RICAREE" style={styles.menuLogo} draggable={false} />
 
-      {/* 2. КНОПКИ В ЦЕНТРЕ */}
-      <div style={styles.centeredButtonCluster}>
-        <PngButton src="/play.png" alt="PLAY" />
-        <PngButton src="/shop.png" alt="SHOP" />
-        <PngButton src="/chests.png" alt="CHESTS" />
+        <div style={styles.btnStack}>
+          <MenuButton src="/play.png" alt="PLAY" />
+          <MenuButton src="/shop.png" alt="SHOP" />
+          <MenuButton src="/chests.png" alt="CHESTS" />
+        </div>
       </div>
     </div>
   );
 };
 
 // ==========================================
-// 5. КОРНЕВОЙ APP
+// 5. APP ROOT
 // ==========================================
 type ScreenState = 'loading' | 'menu' | 'battle';
 
@@ -163,7 +154,7 @@ const App: React.FC = () => {
 
   return (
     <main style={styles.root}>
-      {/* Жесткое отключение мобильных рамок нажатия и контуров фокуса */}
+      {/* Отключение любых рамок, контуров и подсветки браузера */}
       <style>{`
         * {
           -webkit-tap-highlight-color: transparent !important;
@@ -172,39 +163,28 @@ const App: React.FC = () => {
           user-select: none !important;
           -webkit-user-select: none !important;
         }
-        button, button:focus, button:active, button:focus-visible {
+        button {
           outline: none !important;
           border: none !important;
-          box-shadow: none !important;
-          background: transparent;
-        }
-        @keyframes phoneRotateAnim {
-          0% { transform: rotate(0deg); }
-          30% { transform: rotate(-90deg); }
-          70% { transform: rotate(-90deg); }
-          100% { transform: rotate(0deg); }
+          background: transparent !important;
         }
       `}</style>
 
-      {/* Экран блокировки */}
       <LandscapeGuard isPortrait={isPortrait} />
 
-      {/* Экран загрузки */}
       {screen === 'loading' && (
         <LoadingScreen onLoaded={() => setScreen('menu')} isPortrait={isPortrait} />
       )}
 
-      {/* Главное меню */}
       {screen === 'menu' && <MainMenu />}
 
-      {/* Битва */}
       {screen === 'battle' && <GameStage />}
     </main>
   );
 };
 
 // ==========================================
-// СТИЛИ (ПОЛНЫЙ НОЛЬ ТЕНЕЙ И СВЕЧЕНИЙ)
+// СТИЛИ (ПОЛНЫЙ НОЛЬ ТЕНЕЙ, ГРАДИЕНТОВ И СВЕЧЕНИЙ)
 // ==========================================
 const styles: Record<string, React.CSSProperties> = {
   root: {
@@ -213,7 +193,7 @@ const styles: Record<string, React.CSSProperties> = {
     position: 'relative',
     overflow: 'hidden',
     backgroundColor: '#000000',
-    fontFamily: '-apple-system, sans-serif'
+    fontFamily: 'sans-serif'
   },
   // Guard
   guardOverlay: {
@@ -230,24 +210,18 @@ const styles: Record<string, React.CSSProperties> = {
     display: 'flex',
     flexDirection: 'column',
     alignItems: 'center',
-    textAlign: 'center',
     gap: '12px'
-  },
-  guardIconWrap: {
-    animation: 'phoneRotateAnim 2.5s ease-in-out infinite'
   },
   guardTitle: {
     margin: 0,
     color: '#ffffff',
     fontSize: '22px',
-    fontWeight: 900,
-    letterSpacing: '2px'
+    fontWeight: 900
   },
   guardDesc: {
     margin: 0,
     color: '#9e898b',
-    fontSize: '13px',
-    letterSpacing: '1px'
+    fontSize: '13px'
   },
   // Loading
   loadingContainer: {
@@ -268,56 +242,40 @@ const styles: Record<string, React.CSSProperties> = {
     width: '100%',
     height: '100%'
   },
-  giantLogoBox: {
+  loadingLogoBox: {
     position: 'relative',
-    width: '85vw',
-    maxWidth: '640px',
-    height: '70vh',
-    maxHeight: '320px',
+    width: '70vw',
+    maxWidth: '520px',
+    height: '45vh',
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center'
   },
-  giantLogoBase: {
+  loadingLogoBase: {
     width: '100%',
     height: '100%',
     objectFit: 'contain',
     opacity: 0.15
   },
-  giantLogoActive: {
+  loadingLogoActive: {
     position: 'absolute',
     inset: 0,
     width: '100%',
     height: '100%',
     objectFit: 'contain'
   },
-  slimProgressBox: {
-    display: 'flex',
-    flexDirection: 'column',
-    alignItems: 'center',
-    gap: '6px'
-  },
-  slimProgressTrack: {
-    width: '160px',
-    maxWidth: '42vw',
+  progressTrack: {
+    width: '180px',
+    maxWidth: '45vw',
     height: '6px',
-    backgroundColor: '#0a0203',
-    borderRadius: '10px',
-    border: '1.5px solid #3d090d',
-    padding: '1px',
+    backgroundColor: '#000000',
+    borderRadius: '4px',
     overflow: 'hidden'
   },
-  slimProgressFill: {
+  progressFill: {
     height: '100%',
-    borderRadius: '10px',
-    background: 'linear-gradient(180deg, #f04e3e 0%, #a81a15 100%)',
+    backgroundColor: '#b81e18',
     transition: 'width 0.08s linear'
-  },
-  slimProgressText: {
-    color: '#8b4b4e',
-    fontSize: '11px',
-    fontWeight: 900,
-    letterSpacing: '1.2px'
   },
   // Меню
   menuContainer: {
@@ -337,41 +295,36 @@ const styles: Record<string, React.CSSProperties> = {
     objectFit: 'cover',
     pointerEvents: 'none'
   },
-  // ЕЩЁ БОЛЕЕ ОГРОМНЫЙ ЛОГОТИП
-  logoAnchor: {
-    position: 'absolute',
-    top: '0%',
-    left: '50%',
-    transform: 'translateX(-50%)',
-    width: '100%',
-    display: 'flex',
-    justifyContent: 'center',
-    alignItems: 'center',
-    zIndex: 10
-  },
-  hugeMenuLogo: {
-    height: '56vh',
-    maxHeight: '280px',
-    maxWidth: '85vw',
-    objectFit: 'contain'
-  },
-  // КНОПКИ В ЦЕНТРЕ
-  centeredButtonCluster: {
-    position: 'absolute',
-    top: '60%',
-    left: '50%',
-    transform: 'translate(-50%, -50%)',
+  // ЦЕНТРАЛЬНЫЙ БЛОК МЕНЮ
+  centerBlock: {
+    position: 'relative',
+    zIndex: 10,
     display: 'flex',
     flexDirection: 'column',
-    gap: '8px',
     alignItems: 'center',
-    zIndex: 20
+    justifyContent: 'center',
+    height: '100%',
+    gap: '8px'
   },
-  // PNG Кнопка без рамок, теней и подсветки
-  pngBtnWrap: {
-    background: 'transparent',
+  // РЕАЛЬНО ОГРОМНЫЙ ЛОГОТИП
+  menuLogo: {
+    width: '46vw',
+    maxWidth: '420px',
+    height: 'auto',
+    maxHeight: '42vh',
+    objectFit: 'contain'
+  },
+  // СТЕК КНОПОК
+  btnStack: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '6px',
+    alignItems: 'center'
+  },
+  // ЧИСТАЯ КНОПКА (БЕЗ СВЕЧЕНИЯ, БЕЗ ФОНА, БЕЗ ТЕНЕЙ)
+  btn: {
+    background: 'none',
     border: 'none',
-    outline: 'none',
     padding: 0,
     margin: 0,
     cursor: 'pointer',
@@ -379,18 +332,14 @@ const styles: Record<string, React.CSSProperties> = {
     alignItems: 'center',
     justifyContent: 'center',
     touchAction: 'manipulation',
-    userSelect: 'none',
-    WebkitTapHighlightColor: 'transparent',
-    transition: 'transform 0.06s ease-out, filter 0.06s ease-out'
+    transition: 'transform 0.05s ease-out'
   },
-  pngBtnImg: {
-    height: '42px',
-    maxHeight: '10vh',
-    width: 'auto',
-    maxWidth: '30vw',
+  btnImg: {
+    width: '24vw',
+    maxWidth: '210px',
+    height: 'auto',
     objectFit: 'contain',
-    pointerEvents: 'none',
-    userSelect: 'none'
+    pointerEvents: 'none'
   }
 };
 
