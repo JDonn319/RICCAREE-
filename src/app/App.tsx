@@ -8,7 +8,7 @@ const checkIsPortrait = () => {
 };
 
 // ==========================================
-// 1. ПОВОРОТ ЭКРАНА
+// 1. БЛОКИРОВЩИК ПОВОРОТА ЭКРАНА
 // ==========================================
 const LandscapeGuard: React.FC<{ isPortrait: boolean }> = ({ isPortrait }) => {
   if (!isPortrait) return null;
@@ -27,13 +27,31 @@ const LandscapeGuard: React.FC<{ isPortrait: boolean }> = ({ isPortrait }) => {
 };
 
 // ==========================================
-// 2. ЭКРАН ЗАГРУЗКИ (ОГРОМНОЕ ЛОГО + ТОНКАЯ ПОЛОСКА)
+// 2. ЭКРАН ЗАГРУЗКИ (ГРУЗИТ ВСЕ ФОТО И КНОПКИ)
 // ==========================================
 const LoadingScreen: React.FC<{ onLoaded: () => void; isPortrait: boolean }> = ({ onLoaded, isPortrait }) => {
   const [progress, setProgress] = useState(0);
 
   useEffect(() => {
     if (isPortrait) return; // Строгая пауза в вертикали
+
+    // Предзагрузка фона, логотипа и трёх новых кнопок
+    const assets = [
+      '/MainMenuBackground.png',
+      '/RiccarLogo.png',
+      '/play.png',
+      '/shop.png',
+      '/chests.png'
+    ];
+
+    let loadedCount = 0;
+    assets.forEach((src) => {
+      const img = new Image();
+      img.src = src;
+      img.onload = img.onerror = () => {
+        loadedCount++;
+      };
+    });
 
     const timer = setInterval(() => {
       setProgress((prev) => {
@@ -79,9 +97,9 @@ const LoadingScreen: React.FC<{ onLoaded: () => void; isPortrait: boolean }> = (
 };
 
 // ==========================================
-// 3. СВЕТЛАЯ КНОПКА (МЕНЬШЕ, СКРУГЛЕННЫЙ КВАДРАТ)
+// 3. PNG КНОПКА С МЯГКОЙ ПОДСВЕТКОЙ ПРИ НАЖАТИИ
 // ==========================================
-const MenuButton: React.FC<{ text: string }> = ({ text }) => {
+const PngButton: React.FC<{ src: string; alt: string }> = ({ src, alt }) => {
   const [pressed, setPressed] = useState(false);
 
   return (
@@ -90,38 +108,37 @@ const MenuButton: React.FC<{ text: string }> = ({ text }) => {
       onPointerUp={() => setPressed(false)}
       onPointerLeave={() => setPressed(false)}
       style={{
-        ...styles.btnBase,
-        transform: pressed ? 'translateY(2px) scale(0.97)' : 'translateY(0) scale(1)',
-        boxShadow: pressed
-          ? '0 2px 0 #280406, inset 0 2px 4px rgba(0,0,0,0.6)'
-          : '0 4px 0 #280406, 0 6px 10px rgba(0,0,0,0.45), inset 0 1px 2px rgba(255,255,255,0.55)'
+        ...styles.pngBtnWrap,
+        transform: pressed ? 'scale(0.96) translateY(2px)' : 'scale(1)',
+        // Эффект подсветки при нажатии (яркость + мягкое свечение)
+        filter: pressed 
+          ? 'brightness(1.35) drop-shadow(0 0 10px rgba(255, 230, 200, 0.75)) drop-shadow(0 4px 6px rgba(0,0,0,0.5))' 
+          : 'brightness(1) drop-shadow(0 4px 8px rgba(0,0,0,0.45))'
       }}
     >
-      {/* Верхний глянцевый блик */}
-      <div style={styles.btnGloss} />
-      <span style={styles.btnText}>{text}</span>
+      <img src={src} alt={alt} style={styles.pngBtnImg} draggable={false} />
     </button>
   );
 };
 
 // ==========================================
-// 4. ГЛАВНОЕ МЕНЮ (КНОПКИ В ЦЕНТРЕ ЭКРАНА)
+// 4. ГЛАВНОЕ МЕНЮ (ЦЕНТРОВКА + PNG КНОПКИ)
 // ==========================================
 const MainMenu: React.FC = () => {
   return (
     <div style={styles.menuContainer}>
       <img src="/MainMenuBackground.png" alt="BG" style={styles.menuBg} draggable={false} />
       
-      {/* 1. ОГРОМНЫЙ ЛОГОТИП В НЕБЕ НАД КНОПКАМИ */}
+      {/* 1. БОЛЬШОЙ ЛОГОТИП В НЕБЕ */}
       <div style={styles.logoAnchor}>
         <img src="/RiccarLogo.png" alt="RICAREE" style={styles.hugeMenuLogo} draggable={false} />
       </div>
 
-      {/* 2. СУММАРНЫЙ БЛОК КНОПОК РОВНО В ЦЕНТРЕ ЭКРАНА */}
+      {/* 2. ТРИ КНОПКИ РОВНО В ЦЕНТРЕ ЭКРАНА */}
       <div style={styles.centeredButtonCluster}>
-        <MenuButton text="PLAY" />
-        <MenuButton text="SHOP" />
-        <MenuButton text="CHESTS" />
+        <PngButton src="/play.png" alt="PLAY" />
+        <PngButton src="/shop.png" alt="SHOP" />
+        <PngButton src="/chests.png" alt="CHESTS" />
       </div>
     </div>
   );
@@ -152,18 +169,7 @@ const App: React.FC = () => {
 
   return (
     <main style={styles.root}>
-      {/* Подключение шрифта Lemon Slice с резервом */}
       <style>{`
-        @font-face {
-          font-family: 'Lemon Slice';
-          src: url('/LemonSlice.ttf') format('truetype'),
-               url('/LemonSlice.otf') format('opentype'),
-               url('/Lemon Slice.ttf') format('truetype'),
-               url('/lemon-slice.ttf') format('truetype');
-          font-display: swap;
-        }
-        @import url('https://fonts.googleapis.com/css2?family=Rubik:wght@900&display=swap');
-        
         @keyframes phoneRotateAnim {
           0% { transform: rotate(0deg); }
           30% { transform: rotate(-90deg); }
@@ -180,7 +186,7 @@ const App: React.FC = () => {
         <LoadingScreen onLoaded={() => setScreen('menu')} isPortrait={isPortrait} />
       )}
 
-      {/* Меню */}
+      {/* Главное меню */}
       {screen === 'menu' && <MainMenu />}
 
       {/* Битва */}
@@ -199,7 +205,7 @@ const styles: Record<string, React.CSSProperties> = {
     position: 'relative',
     overflow: 'hidden',
     backgroundColor: '#000000',
-    fontFamily: '"Lemon Slice", "Rubik", sans-serif'
+    fontFamily: '-apple-system, sans-serif'
   },
   // Guard
   guardOverlay: {
@@ -327,10 +333,9 @@ const styles: Record<string, React.CSSProperties> = {
     objectFit: 'cover',
     pointerEvents: 'none'
   },
-  // ЛОГОТИП ЕЩЁ БОЛЬШЕ (В ВЕРХНЕЙ ЧАСТИ НЕБА)
   logoAnchor: {
     position: 'absolute',
-    top: '3%',
+    top: '2%',
     left: '50%',
     transform: 'translateX(-50%)',
     width: '100%',
@@ -346,7 +351,7 @@ const styles: Record<string, React.CSSProperties> = {
     objectFit: 'contain',
     filter: 'drop-shadow(0 8px 16px rgba(0,0,0,0.55))'
   },
-  // ВСЕ КНОПКИ СУММАРНО В ЦЕНТРЕ ЭКРАНА
+  // КНОПКИ В ЦЕНТРЕ
   centeredButtonCluster: {
     position: 'absolute',
     top: '58%',
@@ -354,58 +359,31 @@ const styles: Record<string, React.CSSProperties> = {
     transform: 'translate(-50%, -50%)',
     display: 'flex',
     flexDirection: 'column',
-    gap: '7px',
+    gap: '8px',
     alignItems: 'center',
     zIndex: 20
   },
-  // СВЕТЛАЯ КНОПКА МЕНЬШЕГО РАЗМЕРА (СКРУГЛЕННЫЙ КВАДРАТ)
-  btnBase: {
-    position: 'relative',
-    width: '165px',
-    maxWidth: '24vw',
-    height: '37px',
-    maxHeight: '9vh',
-    borderRadius: '12px', // Скругленный прямоугольник вместо капсулы
-    // Светлый насыщенный красный градиент
-    background: 'linear-gradient(180deg, #e8382c 0%, #bd2319 50%, #8a130e 100%)',
-    border: '2.5px solid #280406',
-    cursor: 'pointer',
+  // PNG Кнопка без рамок и фона
+  pngBtnWrap: {
+    background: 'transparent',
+    border: 'none',
     outline: 'none',
+    padding: 0,
+    cursor: 'pointer',
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
     touchAction: 'manipulation',
     userSelect: 'none',
     WebkitTapHighlightColor: 'transparent',
-    overflow: 'hidden',
-    transition: 'transform 0.06s ease-out, box-shadow 0.06s ease-out'
+    transition: 'transform 0.07s ease-out, filter 0.07s ease-out'
   },
-  btnGloss: {
-    position: 'absolute',
-    top: '2px',
-    left: '5px',
-    right: '5px',
-    height: '38%',
-    borderRadius: '8px 8px 4px 4px',
-    background: 'linear-gradient(180deg, rgba(255,255,255,0.7) 0%, rgba(255,255,255,0.08) 100%)',
-    pointerEvents: 'none'
-  },
-  btnText: {
-    position: 'relative',
-    zIndex: 2,
-    color: '#ffffff',
-    fontFamily: '"Lemon Slice", "Rubik", sans-serif',
-    fontSize: '17px',
-    fontWeight: 900,
-    letterSpacing: '1px',
-    textTransform: 'uppercase',
-    textShadow: `
-      -1.5px -1.5px 0 #280406,
-       1.5px -1.5px 0 #280406,
-      -1.5px  1.5px 0 #280406,
-       1.5px  1.5px 0 #280406,
-       0px  2px 3px rgba(0,0,0,0.8)
-    `,
+  pngBtnImg: {
+    height: '44px',
+    maxHeight: '10.5vh',
+    width: 'auto',
+    maxWidth: '32vw',
+    objectFit: 'contain',
     pointerEvents: 'none'
   }
 };
