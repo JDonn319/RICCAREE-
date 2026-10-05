@@ -1,9 +1,11 @@
 import React, { useEffect, useRef } from 'react';
 import * as THREE from 'three';
 
-const BLOCK_SIZE = 28; // Базовый размер блока (воин будет ~2 блока = 56px)
-const WORLD_WIDTH = 2600; // Ширина поля битвы
-const GROUND_Y = -120; // Уровень грунта
+const BLOCK_SIZE = 42; // Увеличенный размер блоков
+const WORLD_WIDTH = 3200; // Протяженность поля битвы
+const GROUND_ROWS = 8; // 1 слой грязи + 7 слоев травы
+const GROUND_BOTTOM_Y = -180; // Нижняя точка мира
+const SURFACE_Y = GROUND_BOTTOM_Y + (GROUND_ROWS - 1) * BLOCK_SIZE; // Поверхность травы
 
 export const GameStage: React.FC = () => {
   const mountRef = useRef<HTMLDivElement>(null);
@@ -12,13 +14,13 @@ export const GameStage: React.FC = () => {
     const container = mountRef.current;
     if (!container) return;
 
-    // 1. Сцена и чистое мультяшное небо
+    // 1. Сцена и голубое небо
     const scene = new THREE.Scene();
     scene.background = new THREE.Color('#9ab7c8');
 
-    // 2. 2D Ортографическая камера под размеры экрана
+    // 2. 2D Ортографическая камера
     const aspect = window.innerWidth / window.innerHeight;
-    const viewHeight = 440;
+    const viewHeight = 520;
     const viewWidth = viewHeight * aspect;
 
     const camera = new THREE.OrthographicCamera(
@@ -31,95 +33,117 @@ export const GameStage: React.FC = () => {
     );
     camera.position.z = 20;
 
-    // Стартуем справа — у НАШЕГО замка
+    // Старт камеры справа — у НАШЕЙ башни
     const initialCamX = 850;
     camera.position.x = initialCamX;
-    camera.position.y = 20;
+    camera.position.y = SURFACE_Y + 120;
 
-    // 3. Рендерер с поддержкой ретины
+    // 3. Рендерер
     const renderer = new THREE.WebGLRenderer({ antialias: false, powerPreference: 'high-performance' });
     renderer.setSize(window.innerWidth, window.innerHeight);
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     container.appendChild(renderer.domElement);
 
-    // 4. Загрузчик текстур с приоритетом путей и генератором запасных текстур
-    const textureLoader = new THREE.TextureLoader();
-
-    const createFallbackCanvas = (color: string, stroke: string, detail?: string) => {
+    // ==========================================
+    // 4. НАДЕЖНАЯ СИСТЕМА ТЕКСТУР (БЕЗ ЧЕРНЫХ КВАДРАТОВ)
+    // ==========================================
+    const createFallbackTexture = (color: string, stroke: string, detail?: string) => {
       const canvas = document.createElement('canvas');
       canvas.width = 64;
       canvas.height = 64;
       const ctx = canvas.getContext('2d')!;
+
+      // Базовый цвет блока
       ctx.fillStyle = color;
       ctx.fillRect(0, 0, 64, 64);
-      ctx.strokeStyle = stroke;
-      ctx.lineWidth = 6;
-      ctx.strokeRect(0, 0, 64, 64);
 
-      if (detail === 'crack') {
+      // Контур блока
+      ctx.strokeStyle = stroke;
+      ctx.lineWidth = 4;
+      ctx.strokeRect(2, 2, 60, 60);
+
+      if (detail === 'grass_top') {
+        ctx.fillStyle = stroke;
+        for (let i = 0; i < 8; i++) {
+          ctx.fillRect(4 + i * 8, 4, 4, 10);
+        }
+      } else if (detail === 'crack') {
         ctx.beginPath();
-        ctx.moveTo(12, 12); ctx.lineTo(32, 38); ctx.lineTo(52, 46);
+        ctx.moveTo(10, 10); ctx.lineTo(26, 32); ctx.lineTo(52, 44);
         ctx.stroke();
       } else if (detail === 'gold') {
-        ctx.fillStyle = '#ffd13b';
-        ctx.fillRect(16, 16, 16, 16);
-        ctx.fillRect(36, 32, 14, 14);
+        ctx.fillStyle = '#ffd54f';
+        ctx.fillRect(16, 16, 14, 14);
+        ctx.fillRect(36, 30, 16, 16);
+        ctx.strokeStyle = '#ff8f00';
+        ctx.strokeRect(16, 16, 14, 14);
+        ctx.strokeRect(36, 30, 16, 16);
       } else if (detail === 'wood_rings') {
-        ctx.strokeStyle = '#3e2723';
-        ctx.strokeRect(16, 16, 32, 32);
+        ctx.strokeStyle = stroke;
+        ctx.strokeRect(14, 14, 36, 36);
+      } else if (detail === 'planks') {
+        ctx.beginPath();
+        ctx.moveTo(2, 32); ctx.lineTo(62, 32);
+        ctx.stroke();
       }
+
       const tex = new THREE.CanvasTexture(canvas);
       tex.magFilter = THREE.NearestFilter;
       tex.minFilter = THREE.NearestFilter;
       return tex;
     };
 
-    const getTex = (name: string, fallbackColor: string, strokeColor: string, detail?: string) => {
-      const fallback = createFallbackCanvas(fallbackColor, strokeColor, detail);
+    // Создание материала с защитой от черного фона (transparent + alphaTest)
+    const createBlockMaterial = (names: string[], fallbackColor: string, strokeColor: string, detail?: string) => {
+      const fallbackTex = createFallbackTexture(fallbackColor, strokeColor, detail);
 
-      // Сначала ищем в /blocks/, если нет — пробуем /gameplay/blocks/, затем в корне
-      const tex = textureLoader.load(
-        `/blocks/${name}.png`,
-        () => { tex.needsUpdate = true; },
-        undefined,
-        () => {
-          textureLoader.load(
-            `/gameplay/blocks/${name}.png`,
-            (loaded) => {
-              tex.image = loaded.image;
-              tex.needsUpdate = true;
-            },
-            undefined,
-            () => {
-              textureLoader.load(`/${name}.png`, (rootLoaded) => {
-                tex.image = rootLoaded.image;
-                tex.needsUpdate = true;
-              });
-            }
-          );
-        }
-      );
+      const mat = new THREE.MeshBasicMaterial({
+        map: fallbackTex,
+        transparent: true,
+        alphaTest: 0.05 // Отсекает прозрачные пиксели PNG, предотвращая черный фон
+      });
 
-      tex.magFilter = THREE.NearestFilter;
-      tex.minFilter = THREE.NearestFilter;
-      return tex || fallback;
+      // Асинхронно ищем PNG по всем возможным путям
+      const tryLoad = (idx: number) => {
+        if (idx >= names.length) return;
+        const img = new Image();
+        img.crossOrigin = 'anonymous';
+        img.onload = () => {
+          const tex = new THREE.Texture(img);
+          tex.magFilter = THREE.NearestFilter;
+          tex.minFilter = THREE.NearestFilter;
+          tex.needsUpdate = true;
+          mat.map = tex;
+          mat.needsUpdate = true;
+        };
+        img.onerror = () => tryLoad(idx + 1);
+        img.src = names[idx];
+      };
+
+      tryLoad(0);
+      return mat;
     };
 
-    // Материалы всех типов блоков
+    const getPaths = (name: string) => [
+      `/blocks/${name}.png`,
+      `/gameplay/blocks/${name}.png`,
+      `/${name}.png`
+    ];
+
     const mats = {
-      grass: new THREE.MeshBasicMaterial({ map: getTex('grass', '#4fa644', '#285822') }),
-      dirt: new THREE.MeshBasicMaterial({ map: getTex('dirt', '#6d4529', '#3b2313') }),
-      stone1: new THREE.MeshBasicMaterial({ map: getTex('stone1', '#7b8089', '#3f4247') }),
-      stone2: new THREE.MeshBasicMaterial({ map: getTex('stone2', '#696e77', '#34373b', 'crack') }),
-      stone3: new THREE.MeshBasicMaterial({ map: getTex('stone3', '#4e525a', '#282a2e') }),
-      planks1: new THREE.MeshBasicMaterial({ map: getTex('planks1', '#ab6d3d', '#58361b') }),
-      planks2: new THREE.MeshBasicMaterial({ map: getTex('planks2', '#975e33', '#472b14') }),
-      wood: new THREE.MeshBasicMaterial({ map: getTex('wood', '#5c3a21', '#2f1b0e', 'wood_rings') }),
-      leaf: new THREE.MeshBasicMaterial({ map: getTex('leaf', '#3a8735', '#1e4b1a'), transparent: true, alphaTest: 0.05 }),
-      ore1: new THREE.MeshBasicMaterial({ map: getTex('ore1', '#7b8089', '#3f4247', 'gold') }),
-      ore2: new THREE.MeshBasicMaterial({ map: getTex('ore2', '#696e77', '#34373b', 'gold') }),
-      throneGold: new THREE.MeshBasicMaterial({ color: '#ffb300' }),
-      throneRed: new THREE.MeshBasicMaterial({ color: '#b71c1c' })
+      grass: createBlockMaterial(getPaths('grass'), '#4caf50', '#2e7d32', 'grass_top'),
+      dirt: createBlockMaterial([...getPaths('girt'), ...getPaths('dirt')], '#5d4037', '#3e2723'),
+      stone1: createBlockMaterial(getPaths('stone1'), '#78909c', '#455a64'),
+      stone2: createBlockMaterial(getPaths('stone2'), '#607d8b', '#37474f', 'crack'),
+      stone3: createBlockMaterial(getPaths('stone3'), '#455a64', '#263238'),
+      planks1: createBlockMaterial(getPaths('planks1'), '#a1887f', '#4e342e', 'planks'),
+      planks2: createBlockMaterial(getPaths('planks2'), '#8d6e63', '#3e2723', 'planks'),
+      wood: createBlockMaterial(getPaths('wood'), '#6d4c41', '#3e2723', 'wood_rings'),
+      leaf: createBlockMaterial(getPaths('leaf'), '#388e3c', '#1b5e20'),
+      ore1: createBlockMaterial(getPaths('ore1'), '#78909c', '#455a64', 'gold'),
+      ore2: createBlockMaterial(getPaths('ore2'), '#607d8b', '#37474f', 'gold'),
+      throneGold: new THREE.MeshBasicMaterial({ color: '#ffc107' }),
+      throneRed: new THREE.MeshBasicMaterial({ color: '#c62828' })
     };
 
     const blockGeo = new THREE.PlaneGeometry(BLOCK_SIZE, BLOCK_SIZE);
@@ -132,64 +156,71 @@ export const GameStage: React.FC = () => {
     };
 
     // ==========================================
-    // 5. СОЛНЦЕ И НЕБО (КВАДРАТ ИЗ РЕФЕРЕНСА)
+    // 5. СОЛНЦЕ (ЖЕЛТЫЙ СВЕТЯЩИЙСЯ КУБ)
     // ==========================================
     const sunGroup = new THREE.Group();
     const sunCore = new THREE.Mesh(
-      new THREE.PlaneGeometry(54, 54),
-      new THREE.MeshBasicMaterial({ color: '#fffbe0' })
+      new THREE.PlaneGeometry(64, 64),
+      new THREE.MeshBasicMaterial({ color: '#fff9c4' })
     );
     const sunGlow = new THREE.Mesh(
-      new THREE.PlaneGeometry(76, 76),
-      new THREE.MeshBasicMaterial({ color: '#ffea75', transparent: true, opacity: 0.35 })
+      new THREE.PlaneGeometry(92, 92),
+      new THREE.MeshBasicMaterial({ color: '#ffee58', transparent: true, opacity: 0.35 })
     );
     sunGroup.add(sunGlow);
     sunGroup.add(sunCore);
-    sunGroup.rotation.z = Math.PI / 8; // Ромбовидный наклон
-    sunGroup.position.set(180, 160, -5);
+    sunGroup.rotation.z = Math.PI / 8;
+    sunGroup.position.set(220, SURFACE_Y + 320, -5);
     scene.add(sunGroup);
 
     // ==========================================
-    // 6. ЗЕМЛЯ (СНИЗУ DIRT, СВЕРХУ GRASS)
+    // 6. ЗЕМЛЯ: 1 СЛОЙ DIRT + 7 СЛОЕВ GRASS
     // ==========================================
     const totalCols = Math.ceil(WORLD_WIDTH / BLOCK_SIZE);
     const startX = -WORLD_WIDTH / 2;
 
     for (let c = 0; c < totalCols; c++) {
       const bx = startX + c * BLOCK_SIZE;
-      // 2 нижних слоя — чистая грязь
-      addBlock(bx, GROUND_Y - BLOCK_SIZE * 2, mats.dirt);
-      addBlock(bx, GROUND_Y - BLOCK_SIZE, mats.dirt);
-      // 2 верхних слоя — трава
-      addBlock(bx, GROUND_Y, mats.grass);
-      addBlock(bx, GROUND_Y + BLOCK_SIZE, mats.grass);
+
+      // 1. Самый нижний слой — dirt / girt
+      addBlock(bx, GROUND_BOTTOM_Y, mats.dirt);
+
+      // 2. Следующие ровно 7 слоев — grass
+      for (let g = 1; g < GROUND_ROWS; g++) {
+        addBlock(bx, GROUND_BOTTOM_Y + g * BLOCK_SIZE, mats.grass);
+      }
     }
 
-    const surfaceY = GROUND_Y + BLOCK_SIZE * 1.5;
-
     // ==========================================
-    // 7. НАШ ЗАМОК (СПРАВА: x = 700 ... 1100)
+    // 7. БАШЕНКИ (ОТСТУП 3 ЛИНИИ БЛОКОВ СНИЗУ)
     // ==========================================
-    const buildPlayerCastle = (baseX: number) => {
-      const castleWidth = 14;
-      const castleHeight = 12;
+    const towerFoundationY = GROUND_BOTTOM_Y + 3 * BLOCK_SIZE; // Отступ 3 блока снизу
+    const TOWER_WIDTH = 6;  // Ширина башенки в блоках
+    const TOWER_HEIGHT = 14; // Высота башенки
 
-      for (let r = 0; r < castleHeight; r++) {
-        for (let c = 0; c < castleWidth; c++) {
+    const buildTower = (baseX: number, isPlayer: boolean) => {
+      for (let r = 0; r < TOWER_HEIGHT; r++) {
+        for (let c = 0; c < TOWER_WIDTH; c++) {
           const bx = baseX + c * BLOCK_SIZE;
-          const by = surfaceY + r * BLOCK_SIZE;
+          const by = towerFoundationY + r * BLOCK_SIZE;
 
-          const isOuterWall = c === 0 || c === castleWidth - 1 || r === 0;
-          const isRoof = r === castleHeight - 1;
-          const isBattlements = r === castleHeight - 1 && c % 2 === 0;
+          const isOuterWall = c === 0 || c === TOWER_WIDTH - 1;
+          const isTopCrown = r === TOWER_HEIGHT - 1;
+          const isBattlements = isTopCrown && (c === 0 || c === 2 || c === TOWER_WIDTH - 1);
+          const isUnderground = by <= SURFACE_Y;
 
-          if (isBattlements || isRoof) {
-            addBlock(bx, by, mats.stone1, 1);
-          } else if (isOuterWall) {
-            addBlock(bx, by, Math.random() > 0.4 ? mats.stone1 : mats.stone2, 1);
+          // Зубцы на крыше
+          if (isBattlements) {
+            addBlock(bx, by, isPlayer ? mats.stone1 : mats.stone2, 2);
+          } else if (isTopCrown) {
+            continue; // Пропуски между зубцами
+          } else if (isOuterWall || isUnderground) {
+            // Внешняя кладка или подземный фундамент
+            const stoneMat = Math.random() > 0.4 ? mats.stone1 : mats.stone2;
+            addBlock(bx, by, stoneMat, 1);
           } else {
-            // Внутренний зал: опорные колонны stone3 + стены/пол из planks
-            if (c % 4 === 0) {
+            // Внутренний разрез башни (опоры stone3 + перекрытия planks)
+            if (c === 1 || c === TOWER_WIDTH - 2) {
               addBlock(bx, by, mats.stone3, 0);
             } else {
               addBlock(bx, by, Math.random() > 0.5 ? mats.planks1 : mats.planks2, 0);
@@ -198,98 +229,115 @@ export const GameStage: React.FC = () => {
         }
       }
 
-      // Трон короля
-      const throneX = baseX + (castleWidth / 2) * BLOCK_SIZE;
-      const throneY = surfaceY + BLOCK_SIZE * 1.5;
-      const tSeat = new THREE.Mesh(new THREE.PlaneGeometry(28, 14), mats.throneRed);
-      tSeat.position.set(throneX, throneY, 2);
-      const tBack = new THREE.Mesh(new THREE.PlaneGeometry(16, 32), mats.throneGold);
-      tBack.position.set(throneX, throneY + 14, 2);
+      // Трон внутри башни (на уровне земли)
+      const throneX = baseX + (TOWER_WIDTH / 2 - 0.5) * BLOCK_SIZE;
+      const throneY = SURFACE_Y + BLOCK_SIZE * 0.8;
+
+      const tSeat = new THREE.Mesh(
+        new THREE.PlaneGeometry(BLOCK_SIZE * 1.1, BLOCK_SIZE * 0.5),
+        isPlayer ? mats.throneRed : mats.stone3
+      );
+      tSeat.position.set(throneX, throneY, 3);
+
+      const tBack = new THREE.Mesh(
+        new THREE.PlaneGeometry(BLOCK_SIZE * 0.6, BLOCK_SIZE * 1.2),
+        isPlayer ? mats.throneGold : mats.stone1
+      );
+      tBack.position.set(throneX, throneY + BLOCK_SIZE * 0.5, 3);
+
       scene.add(tSeat);
       scene.add(tBack);
     };
 
+    // Наша башня — справа (+850), башня врага — слева (-850)
+    buildTower(850, true);
+    buildTower(-850 - TOWER_WIDTH * BLOCK_SIZE, false);
+
     // ==========================================
-    // 8. ЗАМОК ВРАГА (СЛЕВА: x = -1100 ... -700)
+    // 8. ДЕРЕВЬЯ (СТВОЛ + 2-3 ВЕТКИ + КРОНА)
     // ==========================================
-    const buildEnemyCastle = (baseX: number) => {
-      const castleWidth = 14;
-      const castleHeight = 14;
-
-      for (let r = 0; r < castleHeight; r++) {
-        for (let c = 0; c < castleWidth; c++) {
-          const bx = baseX + c * BLOCK_SIZE;
-          const by = surfaceY + r * BLOCK_SIZE;
-
-          const isOuter = c === 0 || c === castleWidth - 1 || r === 0;
-          const isSpike = r >= castleHeight - 3 && (c <= 2 || c >= castleWidth - 3);
-
-          if (isSpike || r === castleHeight - 4) {
-            addBlock(bx, by, mats.stone2, 1);
-          } else if (isOuter) {
-            addBlock(bx, by, Math.random() > 0.3 ? mats.stone2 : mats.stone3, 1);
-          } else {
-            addBlock(bx, by, mats.stone3, 0);
-          }
-        }
+    const buildTree = (rootX: number, trunkHeight: number) => {
+      // 1. Прямой ствол
+      for (let h = 1; h <= trunkHeight; h++) {
+        addBlock(rootX, SURFACE_Y + h * BLOCK_SIZE, mats.wood, 1);
       }
 
-      // Вражеский трон
-      const throneX = baseX + (castleWidth / 2) * BLOCK_SIZE;
-      const throneY = surfaceY + BLOCK_SIZE * 1.5;
-      const tSeat = new THREE.Mesh(new THREE.PlaneGeometry(28, 14), mats.stone3);
-      tSeat.position.set(throneX, throneY, 2);
-      const tBack = new THREE.Mesh(new THREE.PlaneGeometry(14, 30), mats.stone1);
-      tBack.position.set(throneX, throneY + 12, 2);
-      scene.add(tSeat);
-      scene.add(tBack);
-    };
+      // 2. Ветка 1 (налево)
+      const b1Y = SURFACE_Y + Math.floor(trunkHeight * 0.5) * BLOCK_SIZE;
+      addBlock(rootX - BLOCK_SIZE, b1Y, mats.wood, 1);
+      addBlock(rootX - BLOCK_SIZE * 2, b1Y + BLOCK_SIZE * 0.5, mats.wood, 1);
+      // Листья вокруг левой ветки
+      addBlock(rootX - BLOCK_SIZE * 2, b1Y + BLOCK_SIZE * 1.5, mats.leaf, 2);
+      addBlock(rootX - BLOCK_SIZE * 3, b1Y + BLOCK_SIZE * 0.5, mats.leaf, 2);
 
-    buildPlayerCastle(700);
-    buildEnemyCastle(-1100);
+      // 3. Ветка 2 (направо)
+      const b2Y = SURFACE_Y + Math.floor(trunkHeight * 0.75) * BLOCK_SIZE;
+      addBlock(rootX + BLOCK_SIZE, b2Y, mats.wood, 1);
+      addBlock(rootX + BLOCK_SIZE * 2, b2Y + BLOCK_SIZE * 0.5, mats.wood, 1);
+      // Листья вокруг правой ветки
+      addBlock(rootX + BLOCK_SIZE * 2, b2Y + BLOCK_SIZE * 1.5, mats.leaf, 2);
+      addBlock(rootX + BLOCK_SIZE * 3, b2Y + BLOCK_SIZE * 0.5, mats.leaf, 2);
 
-    // ==========================================
-    // 9. НЕЙТРАЛЬНЫЙ ЛЕС И ЗОЛОТЫЕ ЖИЛЫ (ЦЕНТР)
-    // ==========================================
-    const buildOakTree = (x: number) => {
-      const trunkHeight = 4;
-      for (let h = 0; h < trunkHeight; h++) {
-        addBlock(x, surfaceY + h * BLOCK_SIZE, mats.wood, 1);
+      // 4. Ветка 3 (дополнительная)
+      if (trunkHeight > 5) {
+        const b3Y = SURFACE_Y + Math.floor(trunkHeight * 0.6) * BLOCK_SIZE;
+        addBlock(rootX - BLOCK_SIZE, b3Y + BLOCK_SIZE, mats.wood, 1);
+        addBlock(rootX - BLOCK_SIZE, b3Y + BLOCK_SIZE * 2, mats.leaf, 2);
       }
-      const crownBaseY = surfaceY + trunkHeight * BLOCK_SIZE;
-      for (let lx = -2; lx <= 2; lx++) {
-        for (let ly = -1; ly <= 2; ly++) {
-          if (Math.abs(lx) === 2 && Math.abs(ly) === 2) continue; // скругление кроны
-          addBlock(x + lx * BLOCK_SIZE, crownBaseY + ly * BLOCK_SIZE, mats.leaf, 2);
+
+      // 5. Пышная шапка листьев на макушке дерева
+      const topY = SURFACE_Y + (trunkHeight + 1) * BLOCK_SIZE;
+      for (let dx = -2; dx <= 2; dx++) {
+        for (let dy = -1; dy <= 2; dy++) {
+          if (Math.abs(dx) === 2 && dy === 2) continue; // скругление углов
+          addBlock(rootX + dx * BLOCK_SIZE, topY + dy * BLOCK_SIZE, mats.leaf, 2);
         }
       }
     };
 
-    const buildGoldDeposit = (x: number) => {
-      addBlock(x, surfaceY, mats.ore1, 1);
-      addBlock(x + BLOCK_SIZE, surfaceY, mats.ore2, 1);
-      addBlock(x + BLOCK_SIZE / 2, surfaceY + BLOCK_SIZE, mats.ore1, 1);
-    };
-
-    // Дубы
-    buildOakTree(-140);
-    buildOakTree(20);
-    buildOakTree(180);
-
-    // Золото
-    buildGoldDeposit(-290);
-    buildGoldDeposit(340);
+    // Расставляем дубы в нейтральном лесу
+    buildTree(-380, 6);
+    buildTree(-180, 5);
+    buildTree(0, 7);
+    buildTree(220, 5);
+    buildTree(420, 6);
 
     // ==========================================
-    // 10. ФИЗИКА СВАЙПОВ И ГРАНИЦЫ КАМЕРЫ
+    // 9. ЗОЛОТЫЕ ЖИЛЫ В ЛЕСУ (4-5 ШТУК ПО 4-7 БЛОКОВ)
+    // ==========================================
+    const buildOreVein = (centerX: number, blockCount: number) => {
+      let placed = 0;
+      // Вращиваем руду в верхние слои травы и на поверхность
+      const positions = [
+        [0, 0], [1, 0], [-1, 0], [0, 1],
+        [1, 1], [-1, 1], [0, -1]
+      ];
+
+      for (const [ox, oy] of positions) {
+        if (placed >= blockCount) break;
+        const mat = Math.random() > 0.5 ? mats.ore1 : mats.ore2;
+        addBlock(centerX + ox * BLOCK_SIZE, SURFACE_Y + oy * BLOCK_SIZE, mat, 1);
+        placed++;
+      }
+    };
+
+    // Ровно 5 месторождений по 4–7 блоков
+    buildOreVein(-480, 5);
+    buildOreVein(-280, 6);
+    buildOreVein(-80, 4);
+    buildOreVein(120, 7);
+    buildOreVein(320, 5);
+
+    // ==========================================
+    // 10. ФИЗИКА СВАЙПОВ
     // ==========================================
     let targetX = initialCamX;
     let isDragging = false;
     let startPointerX = 0;
     let lastCamX = initialCamX;
 
-    const minX = -1100 + viewWidth / 2;
-    const maxX = 1100 - viewWidth / 2;
+    const minX = -1050 + viewWidth / 2; // Предел у башни врага
+    const maxX = 1050 - viewWidth / 2;  // Предел у нашей башни
 
     const clamp = (val: number, min: number, max: number) => Math.max(min, Math.min(max, val));
 
@@ -331,11 +379,11 @@ export const GameStage: React.FC = () => {
     };
     window.addEventListener('resize', handleResize);
 
-    // Цикл анимации
+    // Рендер-луп
     let animId: number;
     const animate = () => {
       animId = requestAnimationFrame(animate);
-      camera.position.x += (targetX - camera.position.x) * 0.12; // Плавное следование за свайпом
+      camera.position.x += (targetX - camera.position.x) * 0.12; // Плавное движение камеры
       renderer.render(scene, camera);
     };
     animate();
