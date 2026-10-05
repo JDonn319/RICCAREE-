@@ -1,0 +1,162 @@
+import React, { useState } from 'react';
+
+interface MainMenuProps {
+  onPlay: () => void;
+  onShop: () => void;
+  onChests: () => void;
+}
+
+export const MainMenuScreen: React.FC<MainMenuProps> = ({ onPlay, onShop, onChests }) => {
+  return (
+    <div style={styles.container}>
+      {/* 1. ФОН */}
+      <img 
+        src="/MainMenuBackground.png" 
+        alt="Background" 
+        style={styles.background} 
+        draggable={false}
+      />
+
+      {/* 2. ЦЕНТРАЛЬНЫЙ БЛОК: ЛОГОТИП + КНОПКИ */}
+      <div style={styles.centerStage}>
+        {/* Логотип */}
+        <div style={styles.logoBox}>
+          <img 
+            src="/RiccarLogo.png" 
+            alt="Riccaree Legacy Wars" 
+            style={styles.logo}
+            draggable={false}
+          />
+        </div>
+
+        {/* Мармеладные кнопки */}
+        <div style={styles.menuColumn}>
+          <MarmaladeButton text="ИГРАТЬ" onClick={onPlay} />
+          <MarmaladeButton text="МАГАЗИН" onClick={onShop} />
+          <MarmaladeButton text="СУНДУКИ" onClick={onChests} />
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// Отдельный компонент сочной "мармеладной" кнопки
+const MarmaladeButton: React.FC<{ text: string; onClick: () => void }> = ({ text, onClick }) => {
+  const [isPressed, setIsPressed] = useState(false);
+
+  return (
+    <button
+      onPointerDown={() => setIsPressed(true)}
+      onPointerUp={() => { setIsPressed(false); onClick(); }}
+      onPointerLeave={() => setIsPressed(false)}
+      style={{
+        ...styles.btn,
+        transform: isPressed ? 'translateY(4px) scale(0.97)' : 'translateY(0) scale(1)',
+        boxShadow: isPressed
+          ? '0 2px 0 #1b0708, inset 0 2px 4px rgba(0,0,0,0.5)'
+          : '0 6px 0 #1b0708, 0 10px 14px rgba(0,0,0,0.55), inset 0 2px 4px rgba(255,255,255,0.45)'
+      }}
+    >
+      {/* Верхний глянцевый мармеладный блик */}
+      <div style={styles.btnGloss} />
+      <span style={styles.btnText}>{text}</span>
+    </button>
+  );
+};
+
+const styles: Record<string, React.CSSProperties> = {
+  container: {
+    position: 'relative',
+    width: '100vw',
+    height: '100vh',
+    overflow: 'hidden',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#000000'
+  },
+  background: {
+    position: 'absolute',
+    inset: 0,
+    width: '100%',
+    height: '100%',
+    objectFit: 'cover',
+    pointerEvents: 'none'
+  },
+  centerStage: {
+    position: 'relative',
+    zIndex: 10,
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'center',
+    gap: '2vh',
+    padding: 'env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left)'
+  },
+  logoBox: {
+    display: 'flex',
+    justifyContent: 'center',
+    alignItems: 'center'
+  },
+  logo: {
+    maxHeight: '26vh',
+    maxWidth: '44vw',
+    objectFit: 'contain',
+    filter: 'drop-shadow(0 6px 14px rgba(0,0,0,0.45))'
+  },
+  menuColumn: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '11px',
+    alignItems: 'center'
+  },
+  btn: {
+    position: 'relative',
+    width: '270px',
+    maxWidth: '42vw',
+    height: '52px',
+    maxHeight: '11vh',
+    borderRadius: '24px',
+    // Градиент спелой рубиновой вишни / мармелада
+    background: 'linear-gradient(180deg, #c7372c 0%, #9c221b 48%, #6d1511 100%)',
+    border: '3px solid #1c0607',
+    cursor: 'pointer',
+    outline: 'none',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    touchAction: 'manipulation',
+    userSelect: 'none',
+    WebkitTapHighlightColor: 'transparent',
+    overflow: 'hidden',
+    transition: 'transform 0.08s ease-out, box-shadow 0.08s ease-out'
+  },
+  btnGloss: {
+    position: 'absolute',
+    top: '2px',
+    left: '8px',
+    right: '8px',
+    height: '42%',
+    borderRadius: '16px 16px 100px 100px',
+    background: 'linear-gradient(180deg, rgba(255,255,255,0.48) 0%, rgba(255,255,255,0.06) 100%)',
+    pointerEvents: 'none'
+  },
+  btnText: {
+    position: 'relative',
+    zIndex: 2,
+    color: '#ffffff',
+    fontFamily: '"Rubik", "Fredoka", -apple-system, sans-serif',
+    fontSize: '23px',
+    fontWeight: 900,
+    letterSpacing: '1.2px',
+    textTransform: 'uppercase',
+    // Жирная мультяшная обводка текста
+    textShadow: `
+      -2px -2px 0 #1b0708,
+       2px -2px 0 #1b0708,
+      -2px  2px 0 #1b0708,
+       2px  2px 0 #1b0708,
+       0px  3px 4px #000000
+    `,
+    pointerEvents: 'none'
+  }
+};
