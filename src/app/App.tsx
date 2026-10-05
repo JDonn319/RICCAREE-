@@ -112,9 +112,9 @@ const MenuButton: React.FC<{ src: string; alt: string; onClick?: () => void }> =
 };
 
 // ==========================================
-// 4. ИНТЕРАКТИВНАЯ ПОЛОВИНКА РЕЖИМА (SOLO / DUO)
+// 4. СТВОРКА РЕЖИМА НА ВЕСЬ ЭКРАН (ПОЛОВИНА 50%)
 // ==========================================
-const ModeCurtainHalf: React.FC<{
+const FullscreenModeHalf: React.FC<{
   side: 'left' | 'right';
   imgSrc: string;
   alt: string;
@@ -133,20 +133,17 @@ const ModeCurtainHalf: React.FC<{
       onPointerLeave={() => setPressed(false)}
       onPointerCancel={() => setPressed(false)}
       style={{
-        ...styles.curtainHalf,
+        ...styles.fullscreenHalf,
         left: side === 'left' ? 0 : '50%',
-        borderRight: side === 'left' ? '2px solid #140304' : 'none',
-        borderLeft: side === 'right' ? '2px solid #140304' : 'none',
-        transform: isOpen ? 'translateY(0)' : 'translateY(-100%)',
-        backgroundColor: side === 'left' ? '#180405' : '#120304' // темный благородный фон створок
+        transform: isOpen ? 'translateY(0)' : 'translateY(-100%)'
       }}
     >
       <img
         src={imgSrc}
         alt={alt}
         style={{
-          ...styles.modeImg,
-          transform: pressed ? 'scale(0.95)' : 'scale(1)'
+          ...styles.fullImg,
+          transform: pressed ? 'scale(0.98)' : 'scale(1)'
         }}
         draggable={false}
       />
@@ -155,7 +152,7 @@ const ModeCurtainHalf: React.FC<{
 };
 
 // ==========================================
-// 5. ГЛАВНОЕ МЕНЮ С ВЫЕЗЖАЮЩИМИ СТВОРКАМИ
+// 5. ГЛАВНОЕ МЕНЮ
 // ==========================================
 const MainMenu: React.FC = () => {
   const [modesOpen, setModesOpen] = useState(false);
@@ -164,7 +161,7 @@ const MainMenu: React.FC = () => {
     <div style={styles.menuContainer}>
       <img src="/MainMenuBackground.png" alt="BG" style={styles.menuBg} draggable={false} />
       
-      {/* Центр главного экрана */}
+      {/* Главное меню */}
       <div style={styles.centerBlock}>
         <img src="/RiccarLogo.png" alt="RICAREE" style={styles.menuLogo} draggable={false} />
 
@@ -175,32 +172,32 @@ const MainMenu: React.FC = () => {
         </div>
       </div>
 
-      {/* КНОПКА ЗАКРЫТИЯ СТВОРОК ВЫБОРА РЕЖИМА */}
+      {/* КНОПКА ЗАКРЫТИЯ ВЫБОРА РЕЖИМА */}
       {modesOpen && (
         <button
           onClick={() => setModesOpen(false)}
-          style={styles.closeModesBtn}
+          style={styles.closeBtn}
         >
           ✕ BACK
         </button>
       )}
 
-      {/* ЛЕВАЯ СТВОРКА: DUO */}
-      <ModeCurtainHalf
+      {/* СЛЕВА — SOLO */}
+      <FullscreenModeHalf
         side="left"
-        imgSrc="/duo.png"
-        alt="DUO"
-        isOpen={modesOpen}
-        onSelect={() => console.log('DUO SELECTED')}
-      />
-
-      {/* ПРАВАЯ СТВОРКА: SOLO */}
-      <ModeCurtainHalf
-        side="right"
         imgSrc="/solo.png"
         alt="SOLO"
         isOpen={modesOpen}
-        onSelect={() => console.log('SOLO SELECTED')}
+        onSelect={() => console.log('SOLO CHOSEN')}
+      />
+
+      {/* СПРАВА — DUO */}
+      <FullscreenModeHalf
+        side="right"
+        imgSrc="/duo.png"
+        alt="DUO"
+        isOpen={modesOpen}
+        onSelect={() => console.log('DUO CHOSEN')}
       />
     </div>
   );
@@ -260,7 +257,7 @@ const App: React.FC = () => {
 };
 
 // ==========================================
-// СТИЛИ
+// СТИЛИ (ПОЛНОЭКРАННЫЕ СТВОРКИ 50/50)
 // ==========================================
 const styles: Record<string, React.CSSProperties> = {
   root: {
@@ -414,31 +411,28 @@ const styles: Record<string, React.CSSProperties> = {
     objectFit: 'contain',
     pointerEvents: 'none'
   },
-  // ВЫЕЗЖАЮЩИЕ СТВОРКИ (50% ШИРИНЫ КАЖДАЯ)
-  curtainHalf: {
+  // ПОЛНОЭКРАННЫЕ СТВОРКИ (50% ШИРИНЫ НА 100% ВЫСОТЫ)
+  fullscreenHalf: {
     position: 'absolute',
     top: 0,
-    width: '50%',
-    height: '100%',
+    width: '50vw',
+    height: '100vh',
     zIndex: 40,
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
+    overflow: 'hidden',
     cursor: 'pointer',
     touchAction: 'manipulation',
-    // Плавная физика выезда сверху вниз
+    backgroundColor: '#000000',
     transition: 'transform 0.38s cubic-bezier(0.16, 1, 0.3, 1)'
   },
-  modeImg: {
-    width: '32vw',
-    maxWidth: '240px',
-    height: 'auto',
-    maxHeight: '45vh',
-    objectFit: 'contain',
+  fullImg: {
+    width: '100%',
+    height: '100%',
+    objectFit: 'cover',
+    display: 'block',
     pointerEvents: 'none',
     transition: 'transform 0.08s ease-out'
   },
-  closeModesBtn: {
+  closeBtn: {
     position: 'absolute',
     top: '16px',
     left: '20px',
@@ -449,9 +443,9 @@ const styles: Record<string, React.CSSProperties> = {
     fontWeight: 900,
     letterSpacing: '1px',
     padding: '8px 14px',
-    backgroundColor: '#000000',
+    backgroundColor: 'rgba(0, 0, 0, 0.75)',
     borderRadius: '8px',
-    border: '1.5px solid #333333',
+    border: '1.5px solid #444444',
     cursor: 'pointer'
   }
 };
