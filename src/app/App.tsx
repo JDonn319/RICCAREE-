@@ -33,7 +33,6 @@ const LoadingScreen: React.FC<{ onLoaded: () => void; isPortrait: boolean }> = (
   useEffect(() => {
     if (isPortrait) return;
 
-    // Кешируем все картинки меню, панорамы и башен
     const assets = [
       '/MainMenuBackground.png',
       '/RiccarLogo.png',
@@ -229,7 +228,6 @@ const App: React.FC = () => {
     };
   }, []);
 
-  // Переход при клике на SOLO: затемнение -> лоадер -> растемнение -> игра
   const handleStartSolo = () => {
     setIsFadingToBlack(true);
     setTimeout(() => {
@@ -286,7 +284,6 @@ const App: React.FC = () => {
         </div>
       )}
 
-      {/* Черный экран для плавного затемнения */}
       <div 
         style={{
           ...styles.fadeCurtain,
