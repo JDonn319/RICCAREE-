@@ -26,7 +26,7 @@ interface RigConfig {
 // Начальная калибровка под референс chibi-рыцаря
 const DEFAULT_RIG: RigConfig = {
   torso: { x: 0, y: 38, size: 66 },
-  head: { x: 2, y: 44, size: 90 }, // Огромный шлем
+  head: { x: 2, y: 44, size: 90 },
   armFront: { x: 0, y: 52, size: 62 },
   armBack: { x: 0, y: 52, size: 62 },
   legFront: { x: 0, y: 28, size: 60 },
@@ -80,7 +80,7 @@ export const GameStage: React.FC = () => {
   useEffect(() => { commandRef.current = command; }, [command]);
   useEffect(() => { rigRef.current = rig; }, [rig]);
 
-  // Обработка очереди обучения юнитов (по одному)
+  // Обработка очереди обучения юнитов
   useEffect(() => {
     if (trainQueue <= 0) {
       setTrainProgress(0);
@@ -94,7 +94,7 @@ export const GameStage: React.FC = () => {
     const timer = setInterval(() => {
       setTrainProgress((prev) => {
         if (prev + step >= 100) {
-          spawnUnitRef.current(false); // Спавним нашего рыцаря
+          spawnUnitRef.current(false);
           setTrainQueue((q) => Math.max(0, q - 1));
           setPop((p) => p + 1);
           return 0;
@@ -208,7 +208,7 @@ export const GameStage: React.FC = () => {
     });
 
     // ==========================================
-    // 6. ЗАГРУЗКА ЧАСТЕЙ ТЕЛА С КВАДРАТНЫМИ ХИТБОКСАМИ
+    // 6. ЗАГРУЗКА ЧАСТЕЙ ТЕЛА (1:1 КВАДРАТ)
     // ==========================================
     const createSquareFallback = (color: string, isBack = false) => {
       const canvas = document.createElement('canvas');
@@ -268,21 +268,19 @@ export const GameStage: React.FC = () => {
       sword: loadPiece(['WSword'], '#d6dadf')
     };
 
-    // Создание 1:1 КВАДРАТНОЙ плоскости с точной точкой крепления кости
+    // 1:1 КВАДРАТНАЯ плоскость с точной точкой крепления
     const createSquareBone = (size: number, mat: THREE.Material, anchor: 'top' | 'bottom' | 'center') => {
       const geo = new THREE.PlaneGeometry(size, size);
       if (anchor === 'top') {
-        // Кость крепится за самый верх квадрата (руки и ноги)
-        geo.translate(0, -size / 2, 0);
+        geo.translate(0, -size / 2, 0); // Крепление за верхний край квадрата
       } else if (anchor === 'bottom') {
-        // Кость крепится за самый низ квадрата (голова)
-        geo.translate(0, size / 2, 0);
+        geo.translate(0, size / 2, 0); // Крепление за нижний край квадрата
       }
       return new THREE.Mesh(geo, mat);
     };
 
     // ==========================================
-    // 7. СБОРКА РЫЦАРЯ И ШЕРЕНГИ ПО 4 В РЯДУ
+    // 7. СБОРКА РЫЦАРЯ И ПОСТРОЕНИЕ ПО 4 В РЯДУ
     // ==========================================
     const allUnits: UnitInstance[] = [];
     const baseFloorY = -viewHeight / 2 + 35;
@@ -292,29 +290,27 @@ export const GameStage: React.FC = () => {
       const cfg = rigRef.current;
       const root = new THREE.Group();
 
-      // Шеренга из 4 рядов:
-      // Ряд 0 (передний): крупный (scale = 1.0), внизу
-      // Ряд 3 (задний): меньше (scale = 0.82), стоит выше по Y
+      // Шеренги по 4 в ряду (уменьшение вглубь)
       const row = rankIndex % 4;
       const rankCol = Math.floor(rankIndex / 4);
-      const depthScale = 1.0 - row * 0.06; // Уменьшение вдаль
-      const rowOffsetY = row * 11; // Смещение рядов по высоте
-      const depthZ = 5 - row * 0.1; // Слои глубины
+      const depthScale = 1.0 - row * 0.06;
+      const rowOffsetY = row * 11;
+      const depthZ = 5 - row * 0.1;
 
       root.position.set(spawnX, baseFloorY + rowOffsetY, depthZ);
       root.scale.set(isEnemy ? -depthScale : depthScale, depthScale, 1);
 
-      // 1. ТОРС (центр)
+      // 1. ТОРС
       const torso = createSquareBone(cfg.torso.size, mats.torso, 'center');
       torso.position.set(cfg.torso.x, cfg.torso.y, 0);
       root.add(torso);
 
-      // 2. ГОЛОВА (крепится за самый низ квадрата)
+      // 2. ГОЛОВА (за нижний край квадрата)
       const head = createSquareBone(cfg.head.size, mats.head, 'bottom');
       head.position.set(cfg.head.x, cfg.head.y, 0.05);
       torso.add(head);
 
-      // 3. НОГИ (крепятся за самый верх квадрата в одной центральной точке)
+      // 3. НОГИ (за верхний край квадрата, общий центр)
       const backLegPivot = new THREE.Group();
       backLegPivot.position.set(cfg.legBack.x, cfg.legBack.y, -0.03);
       const backLegMesh = createSquareBone(cfg.legBack.size, mats.legBack, 'top');
@@ -327,7 +323,7 @@ export const GameStage: React.FC = () => {
       frontLegPivot.add(frontLegMesh);
       root.add(frontLegPivot);
 
-      // 4. РУКИ (крепятся за самый верх квадрата в одной центральной точке плеча)
+      // 4. РУКИ (за верхний край квадрата, общий центр плеча)
       const backArmPivot = new THREE.Group();
       backArmPivot.position.set(cfg.armBack.x, cfg.armBack.y, -0.04);
       const backArmMesh = createSquareBone(cfg.armBack.size, mats.armBack, 'top');
@@ -347,7 +343,7 @@ export const GameStage: React.FC = () => {
 
       torso.add(frontArmPivot);
 
-      // Полоска HP над головой
+      // HP полоска
       const hpBarGeo = new THREE.PlaneGeometry(36, 5);
       const hpBarMat = new THREE.MeshBasicMaterial({ color: isEnemy ? '#e53935' : '#43a047' });
       const hpBar = new THREE.Mesh(hpBarGeo, hpBarMat);
@@ -384,20 +380,20 @@ export const GameStage: React.FC = () => {
       return newUnit;
     };
 
-    // Спавн слева далеко за экраном
+    // Спавн далеко за экраном
     spawnUnitRef.current = (isEnemy: boolean) => {
       const alliesCount = allUnits.filter((u) => !u.isEnemy).length;
       const enemiesCount = allUnits.filter((u) => u.isEnemy).length;
       const rankIdx = isEnemy ? enemiesCount : alliesCount;
 
       const spawnX = isEnemy
-        ? WORLD_TOTAL_WIDTH / 2 + 120 // Враги выходят справа из-за экрана
-        : -WORLD_TOTAL_WIDTH / 2 - 140; // Мы выходим слева из-за экрана
+        ? WORLD_TOTAL_WIDTH / 2 + 120
+        : -WORLD_TOTAL_WIDTH / 2 - 140;
 
       buildRiggedKnight(isEnemy, rankIdx, spawnX);
     };
 
-    // Периодический спавн врагов для теста боя
+    // Спавн врагов для теста боя
     const enemySpawnInterval = setInterval(() => {
       if (allUnits.filter((u) => u.isEnemy).length < 8) {
         spawnUnitRef.current(true);
@@ -461,7 +457,7 @@ export const GameStage: React.FC = () => {
     window.addEventListener('resize', handleResize);
 
     // ==========================================
-    // 9. АНИМАЦИИ: БОЙ, 2 АТАКИ, ПОХОДКА, СТОЙКА
+    // 9. АНИМАЦИИ: 2 АТАКИ, ХОДЬБА, СТОЙКА
     // ==========================================
     let animId: number;
     let lastTime = performance.now();
@@ -483,7 +479,6 @@ export const GameStage: React.FC = () => {
         const u = allUnits[i];
         if (u.state === 'dead') continue;
 
-        // Поиск ближайшего врага
         const opponentList = u.isEnemy ? allies : enemies;
         let nearestTarget: UnitInstance | null = null;
         let minDist = 99999;
@@ -496,28 +491,23 @@ export const GameStage: React.FC = () => {
           }
         }
 
-        const ATTACK_RANGE = 62; // Дистанция удара мечом
+        const ATTACK_RANGE = 62;
 
-        // 1. ПРОВЕРКА БОЯ: Если рядом враг — атакуем!
+        // ПРОВЕРКА БОЯ
         if (nearestTarget && minDist <= ATTACK_RANGE) {
           if (u.state !== 'attack1' && u.state !== 'attack2') {
-            // Случайный выбор между двумя типами атаки:
             u.state = Math.random() > 0.5 ? 'attack1' : 'attack2';
             u.attackTimer = 0;
           }
         } else {
-          // 2. ДВИЖЕНИЕ ВНЕ БОЯ
           if (u.isEnemy) {
-            // Враг всегда идет влево на штурм
             u.group.position.x -= u.speed;
             u.state = 'walk';
           } else {
-            // Логика Stick War для игрока
             if (curCmd === 'attack') {
               u.group.position.x += u.speed;
               u.state = 'walk';
             } else if (curCmd === 'defend') {
-              // Позиция построения шеренги у базы
               const targetSlotX = -WORLD_TOTAL_WIDTH / 2 + 500 + u.rankCol * 48;
               const diff = targetSlotX - u.group.position.x;
               if (Math.abs(diff) > 8) {
@@ -538,9 +528,7 @@ export const GameStage: React.FC = () => {
           }
         }
 
-        // ==========================================
-        // 3. АНИМАЦИОННЫЙ РЕНДЕР СОСТОЯНИЙ
-        // ==========================================
+        // РЕНДЕР АНИМАЦИИ
         const baseTorsoY = rigRef.current.torso.y;
         const defaultSwordRot = (rigRef.current.sword.rot * Math.PI) / 180;
 
@@ -565,39 +553,33 @@ export const GameStage: React.FC = () => {
           u.parts.sword.rotation.z = defaultSwordRot + breathe * 0.05;
 
         } else if (u.state === 'attack1') {
-          // АТАКА 1: РУБЯЩИЙ ЗАМАХ СВЕРХУ ВНИЗ
+          // АТАКА 1: РУБЯЩИЙ УДАР
           u.attackTimer += delta * 4;
           const t = u.attackTimer;
 
           if (t < 0.4) {
-            // Замах назад вверх
             u.parts.armF.rotation.z = -1.2;
             u.parts.sword.rotation.z = 0.8;
           } else if (t < 0.7) {
-            // Резкий рубящий удар вниз
             u.parts.armF.rotation.z = 0.7;
             u.parts.sword.rotation.z = -1.2;
-            // Урон врагу в момент соприкосновения
             if (nearestTarget && t < 0.48) {
               nearestTarget.hp -= 0.6;
               nearestTarget.hpBar.scale.x = Math.max(0, nearestTarget.hp / nearestTarget.maxHp);
             }
           } else {
-            // Возврат в стойку
             u.state = 'idle';
           }
 
         } else if (u.state === 'attack2') {
-          // АТАКА 2: КОЛЮЩИЙ ВЫПАД ВПЕРЕД
+          // АТАКА 2: КОЛЮЩИЙ ВЫПАД
           u.attackTimer += delta * 4.5;
           const t = u.attackTimer;
 
           if (t < 0.3) {
-            // Оттяжка назад
             u.parts.armF.rotation.z = -0.5;
             u.parts.sword.rotation.z = -0.2;
           } else if (t < 0.65) {
-            // Выпад мечом прямо вперед
             u.parts.armF.rotation.z = 0.9;
             u.parts.sword.rotation.z = -1.55;
             if (nearestTarget && t < 0.4) {
@@ -609,8 +591,8 @@ export const GameStage: React.FC = () => {
           }
         }
 
-        // Удаление погибших
-        if (u.hp <= 0 && u.state !== 'dead') {
+        // Удаление погибших юнитов (исправлено на строке 613)
+        if (u.hp <= 0) {
           u.state = 'dead';
           scene.remove(u.group);
           if (!u.isEnemy) setPop((p) => Math.max(0, p - 1));
@@ -636,12 +618,10 @@ export const GameStage: React.FC = () => {
     };
   }, []);
 
-  // Добавление воина в очередь обучения (Stick War)
   const handleQueueWarrior = () => {
     setTrainQueue((q) => q + 1);
   };
 
-  // Копирование координат из Редактора в буфер обмена
   const handleCopyRig = () => {
     navigator.clipboard.writeText(JSON.stringify(rig, null, 2));
     setCopySuccess(true);
@@ -653,10 +633,9 @@ export const GameStage: React.FC = () => {
       <div ref={mountRef} style={{ width: '100%', height: '100%', touchAction: 'none' }} />
 
       {/* ==========================================
-          ВЕРХНЯЯ ПАНЕЛЬ STICK WAR: ЗОЛОТО + ЮНИТЫ + ОЧЕРЕДЬ
+          ВЕРХНЯЯ ПАНЕЛЬ: ЗОЛОТО + ЮНИТЫ + ОЧЕРЕДЬ
           ========================================== */}
       <div style={styles.topHud}>
-        {/* Кнопка открытия Редактора Костей */}
         <button
           className="hud-element"
           onClick={() => setShowEditor(!showEditor)}
@@ -668,7 +647,6 @@ export const GameStage: React.FC = () => {
           {showEditor ? '✕ CLOSE RIG' : '🦴 RIG EDITOR'}
         </button>
 
-        {/* Счётчик золота и лимита армии */}
         <div className="hud-element" style={styles.statPanel}>
           <div style={styles.statItem}>
             <span>🪙</span>
@@ -681,7 +659,6 @@ export const GameStage: React.FC = () => {
           </div>
         </div>
 
-        {/* Иконки призыва юнитов с индикатором очереди */}
         <div style={styles.summonRow}>
           {/* 1. WARRIOR */}
           <button
@@ -697,7 +674,6 @@ export const GameStage: React.FC = () => {
             />
             <span style={styles.cardCost}>125</span>
 
-            {/* Круговой индикатор обучения текущего юнита */}
             {trainQueue > 0 && (
               <div
                 style={{
@@ -707,7 +683,6 @@ export const GameStage: React.FC = () => {
               />
             )}
 
-            {/* Бейдж количества юнитов в очереди (x2, x3...) */}
             {trainQueue > 0 && (
               <div style={styles.queueBadge}>
                 {trainQueue}
@@ -740,7 +715,7 @@ export const GameStage: React.FC = () => {
       </div>
 
       {/* ==========================================
-          ПАНЕЛЬ ПРИКАЗОВ STICK WAR (СПРАВА В ПОЛУКРУГЕ)
+          КОМАНДНЫЙ ПОЛУКРУГ STICK WAR
           ========================================== */}
       <div style={styles.wheelPlate}>
         <button
@@ -784,7 +759,7 @@ export const GameStage: React.FC = () => {
       </div>
 
       {/* ==========================================
-          ВИЗУАЛЬНЫЙ РЕДАКТОР КОСТЕЙ (RIG EDITOR)
+          РЕЖИМ РЕДАКТИРОВАНИЯ КОСТЕЙ
           ========================================== */}
       {showEditor && (
         <div style={styles.editorPanel}>
@@ -822,7 +797,6 @@ export const GameStage: React.FC = () => {
               </div>
             ))}
 
-            {/* Меч */}
             <div style={styles.editorRow}>
               <span style={styles.boneName}>SWORD</span>
               <div style={styles.sliderGroup}>
@@ -909,7 +883,6 @@ const styles: Record<string, React.CSSProperties> = {
     display: 'flex',
     gap: '8px'
   },
-  // Круглая золотая иконка из Stick War
   stickWarCard: {
     position: 'relative',
     width: '58px',
@@ -964,7 +937,6 @@ const styles: Record<string, React.CSSProperties> = {
     justifyContent: 'center',
     border: '1.5px solid #ffffff'
   },
-  // Деревянный командный полукруг Stick War (справа)
   wheelPlate: {
     position: 'absolute',
     right: '12px',
@@ -997,7 +969,6 @@ const styles: Record<string, React.CSSProperties> = {
     fontWeight: 900,
     letterSpacing: '0.5px'
   },
-  // Панель редактора костей
   editorPanel: {
     position: 'absolute',
     top: '64px',
