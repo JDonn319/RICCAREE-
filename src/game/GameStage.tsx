@@ -1,8 +1,11 @@
 import React, { useEffect, useRef, useState } from 'react';
 import * as THREE from 'three';
+import { Swords, Shield, Flag } from 'lucide-react';
 
 const WORLD_TOTAL_WIDTH = 2105;
 const PART_WIDTH = WORLD_TOTAL_WIDTH / 3;
+
+type ArmyCommand = 'retreat' | 'defend' | 'attack';
 
 interface Unit {
   group: THREE.Group;
@@ -22,7 +25,34 @@ interface Unit {
 export const GameStage: React.FC = () => {
   const mountRef = useRef<HTMLDivElement>(null);
   const [gold] = useState(100);
+  const [command, setCommand] = useState<ArmyCommand>('defend');
+  const [spawnCd, setSpawnCd] = useState<number>(0); // Кулдаун спавна в секундах
+
   const spawnWarriorRef = useRef<() => void>(() => {});
+  const commandRef = useRef<ArmyCommand>('defend');
+
+  // Синхронизация рефа команды для анимационного цикла Three.js
+  useEffect(() => {
+    commandRef.current = command;
+  }, [command]);
+
+  // Таймер кулдауна 8 секунд
+  useEffect(() => {
+    if (spawnCd <= 0) return;
+    const interval = 50;
+    const timer = setInterval(() => {
+      setSpawnCd((prev) => {
+        if (prev <= 0.05) {
+          clearInterval(timer);
+          spawnWarriorRef.current(); // По истечении 8 секунд воин появляется и выходит
+          return 0;
+        }
+        return Math.max(0, +(prev - interval / 1000).toFixed(2));
+      });
+    }, interval);
+
+    return () => clearInterval(timer);
+  }, [spawnCd]);
 
   useEffect(() => {
     const container = mountRef.current;
@@ -32,7 +62,7 @@ export const GameStage: React.FC = () => {
     const scene = new THREE.Scene();
     scene.background = new THREE.Color('#101010');
 
-    // 2. 2D Ортографическая камера
+    // 2. 2D Ортографическая камера под высоту экрана
     const viewHeight = 540;
     const aspect = window.innerWidth / window.innerHeight;
     const viewWidth = viewHeight * aspect;
@@ -77,17 +107,17 @@ export const GameStage: React.FC = () => {
     });
 
     // ==========================================
-    // 5. БАШНИ ПО КРАЯМ ПОЛЯ
+    // 5. БАШНИ: НАША СЛЕВА, ВРАГ СПРАВА
     // ==========================================
     const towerHeight = viewHeight * 0.65;
     const defaultTowerWidth = towerHeight * 0.55;
     const groundLevelY = -viewHeight / 2 + towerHeight / 2;
 
-    // Наша башня (справа)
+    // 1. Наша башня (СЛЕВА)
     const playerTowerGeo = new THREE.PlaneGeometry(defaultTowerWidth, towerHeight);
     const playerTowerMat = new THREE.MeshBasicMaterial({ transparent: true, alphaTest: 0.05 });
     const playerTower = new THREE.Mesh(playerTowerGeo, playerTowerMat);
-    playerTower.position.set(WORLD_TOTAL_WIDTH / 2 - defaultTowerWidth / 2 - 30, groundLevelY, 2);
+    playerTower.position.set(-WORLD_TOTAL_WIDTH / 2 + defaultTowerWidth / 2 + 30, groundLevelY, 2);
     scene.add(playerTower);
 
     textureLoader.load('/tower.png', (tex) => {
@@ -100,15 +130,15 @@ export const GameStage: React.FC = () => {
         const realW = towerHeight * tAspect;
         playerTower.geometry.dispose();
         playerTower.geometry = new THREE.PlaneGeometry(realW, towerHeight);
-        playerTower.position.x = WORLD_TOTAL_WIDTH / 2 - realW / 2 - 30;
+        playerTower.position.x = -WORLD_TOTAL_WIDTH / 2 + realW / 2 + 30;
       }
     });
 
-    // Вражеская башня (слева)
+    // 2. Вражеская башня (СПРАВА)
     const enemyTowerGeo = new THREE.PlaneGeometry(defaultTowerWidth, towerHeight);
     const enemyTowerMat = new THREE.MeshBasicMaterial({ transparent: true, alphaTest: 0.05 });
     const enemyTower = new THREE.Mesh(enemyTowerGeo, enemyTowerMat);
-    enemyTower.position.set(-WORLD_TOTAL_WIDTH / 2 + defaultTowerWidth / 2 + 30, groundLevelY, 2);
+    enemyTower.position.set(WORLD_TOTAL_WIDTH / 2 - defaultTowerWidth / 2 - 30, groundLevelY, 2);
     scene.add(enemyTower);
 
     textureLoader.load('/etower1.png', (tex) => {
@@ -121,30 +151,30 @@ export const GameStage: React.FC = () => {
         const realW = towerHeight * tAspect;
         enemyTower.geometry.dispose();
         enemyTower.geometry = new THREE.PlaneGeometry(realW, towerHeight);
-        enemyTower.position.x = -WORLD_TOTAL_WIDTH / 2 + realW / 2 + 30;
+        enemyTower.position.x = WORLD_TOTAL_WIDTH / 2 - realW / 2 - 30;
       }
     });
 
     // ==========================================
-    // 6. ЗАГРУЗЧИК ЧАСТЕЙ ТЕЛА ВОИНА (РИГ)
+    // 6. ЗАГРУЗЧИК РИГА WARRIOR (ИЗ РЕФЕРЕНСА)
     // ==========================================
-    const createPartTexture = (color: string, stroke: string) => {
+    const createPartFallback = (color: string, isBack = false) => {
       const canvas = document.createElement('canvas');
       canvas.width = 64;
       canvas.height = 64;
       const ctx = canvas.getContext('2d')!;
-      ctx.fillStyle = color;
+      ctx.fillStyle = isBack ? '#2d323b' : color;
       ctx.fillRect(4, 4, 56, 56);
-      ctx.strokeStyle = stroke;
-      ctx.lineWidth = 6;
+      ctx.strokeStyle = '#121417';
+      ctx.lineWidth = 5;
       ctx.strokeRect(4, 4, 56, 56);
       const tex = new THREE.CanvasTexture(canvas);
       tex.magFilter = THREE.NearestFilter;
       return tex;
     };
 
-    const loadCharMat = (names: string[], fallbackColor: string) => {
-      const fallback = createPartTexture(fallbackColor, '#1b1b1b');
+    const loadPieceMat = (names: string[], fallbackColor: string, isBack = false) => {
+      const fallback = createPartFallback(fallbackColor, isBack);
       const mat = new THREE.MeshBasicMaterial({
         map: fallback,
         transparent: true,
@@ -177,20 +207,19 @@ export const GameStage: React.FC = () => {
     };
 
     const warriorMats = {
-      torso: loadCharMat(['WTorso'], '#505663'),
-      head: loadCharMat(['Whead', 'WHead'], '#636b7b'),
-      arm1: loadCharMat(['WArm1'], '#505663'),
-      arm2: loadCharMat(['WArm2'], '#3b404a'),
-      leg1: loadCharMat(['WLeg1'], '#454a55'),
-      leg2: loadCharMat(['WLeg2'], '#32363e'),
-      sword: loadCharMat(['WSword'], '#d6dadf')
+      head: loadPieceMat(['Whead', 'WHead'], '#5a6273'),
+      torso: loadPieceMat(['WTorso'], '#505666'),
+      armFront: loadPieceMat(['WArm1'], '#505666'),
+      armBack: loadPieceMat(['WArm2'], '#30343d', true),
+      legFront: loadPieceMat(['WLeg1'], '#464c59'),
+      legBack: loadPieceMat(['WLeg2'], '#2b2f38', true),
+      sword: loadPieceMat(['WSword'], '#d6dadf')
     };
 
-    // Создание меша со смещенным центром вращения (пивотом)
     const createPivotMesh = (w: number, h: number, mat: THREE.Material, pivotY: 'top' | 'center' | 'bottom') => {
       const geo = new THREE.PlaneGeometry(w, h);
       if (pivotY === 'top') {
-        geo.translate(0, -h / 2, 0); // Вращение вокруг верхнего сустава (плечо, бедро)
+        geo.translate(0, -h / 2, 0); // Вращение вокруг верхнего сустава
       } else if (pivotY === 'bottom') {
         geo.translate(0, h / 2, 0);
       }
@@ -198,72 +227,73 @@ export const GameStage: React.FC = () => {
     };
 
     // ==========================================
-    // 7. СБОРКА И СПАВН ВОИНА (2 БЛОКА В ВЫСОТУ)
+    // 7. СБОРКА РЫЦАРЯ 1 В 1 ПО РЕФЕРЕНСУ (КРУПНЫЙ)
     // ==========================================
     const units: Unit[] = [];
-    const WARRIOR_HEIGHT = 65; // ~2 блока
-    const characterFloorY = -viewHeight / 2 + 50; // Линия земли
+    const WARRIOR_TOTAL_H = 114; // Значительно увеличенный размер
+    const characterFloorY = -viewHeight / 2 + 55;
 
     const createWarrior = (spawnX: number) => {
       const root = new THREE.Group();
       root.position.set(spawnX, characterFloorY, 5);
-      root.scale.set(-1, 1, 1); // Лицом влево на врага
+      root.scale.set(1, 1, 1); // Лицом вправо (на врага!)
 
-      // 1. Тело (центр)
-      const torsoH = WARRIOR_HEIGHT * 0.42;
-      const torsoW = torsoH * 0.85;
+      // 1. ТОРС (компактный, как на арте)
+      const torsoH = WARRIOR_TOTAL_H * 0.38; // ~43px
+      const torsoW = torsoH * 0.85; // ~36px
       const torso = createPivotMesh(torsoW, torsoH, warriorMats.torso, 'center');
-      torso.position.set(0, WARRIOR_HEIGHT * 0.45, 0);
+      torso.position.set(0, WARRIOR_TOTAL_H * 0.38, 0);
       root.add(torso);
 
-      // 2. Голова (на плечах)
-      const headH = WARRIOR_HEIGHT * 0.36;
-      const headW = headH * 0.9;
+      // 2. ГОЛОВА / ШЛЕМ (ОГРОМНЫЙ CHIBI, ~50% ВСЕГО РОСТА)
+      const headH = WARRIOR_TOTAL_H * 0.52; // ~60px
+      const headW = headH * 0.92; // ~55px
       const head = createPivotMesh(headW, headH, warriorMats.head, 'bottom');
-      head.position.set(0, torsoH / 2 - 2, 0.02);
+      // Шлем глубоко нависает над кирасой, как на арте-референсе
+      head.position.set(2, torsoH * 0.05, 0.05);
       torso.add(head);
 
-      // 3. Ноги (бедра крепятся к низу тела)
-      const legH = WARRIOR_HEIGHT * 0.38;
-      const legW = legH * 0.55;
+      // 3. НОГИ (короткие массивные латы)
+      const legH = WARRIOR_TOTAL_H * 0.33; // ~38px
+      const legW = legH * 0.52;
 
-      // Задняя нога (слой позади)
+      // Задняя нога (темная, в тени сзади)
       const backLegPivot = new THREE.Group();
-      backLegPivot.position.set(-torsoW * 0.22, WARRIOR_HEIGHT * 0.32, -0.02);
-      const backLegMesh = createPivotMesh(legW, legH, warriorMats.leg2, 'top');
+      backLegPivot.position.set(-torsoW * 0.16, WARRIOR_TOTAL_H * 0.28, -0.03);
+      const backLegMesh = createPivotMesh(legW, legH, warriorMats.legBack, 'top');
       backLegPivot.add(backLegMesh);
       root.add(backLegPivot);
 
-      // Передняя нога (слой спереди)
+      // Передняя нога (светлая, спереди)
       const frontLegPivot = new THREE.Group();
-      frontLegPivot.position.set(torsoW * 0.22, WARRIOR_HEIGHT * 0.32, 0.02);
-      const frontLegMesh = createPivotMesh(legW, legH, warriorMats.leg1, 'top');
+      frontLegPivot.position.set(torsoW * 0.16, WARRIOR_TOTAL_H * 0.28, 0.03);
+      const frontLegMesh = createPivotMesh(legW, legH, warriorMats.legFront, 'top');
       frontLegPivot.add(frontLegMesh);
       root.add(frontLegPivot);
 
-      // 4. Руки и меч (плечи крепятся к верху тела)
-      const armH = WARRIOR_HEIGHT * 0.34;
+      // 4. РУКИ И МЕЧ
+      const armH = WARRIOR_TOTAL_H * 0.36; // ~41px
       const armW = armH * 0.55;
 
-      // Задняя рука (слой позади)
+      // Задняя рука (в тени)
       const backArmPivot = new THREE.Group();
-      backArmPivot.position.set(-torsoW * 0.35, torsoH * 0.3, -0.03);
-      const backArmMesh = createPivotMesh(armW, armH, warriorMats.arm2, 'top');
+      backArmPivot.position.set(-torsoW * 0.32, torsoH * 0.25, -0.04);
+      const backArmMesh = createPivotMesh(armW, armH, warriorMats.armBack, 'top');
       backArmPivot.add(backArmMesh);
       torso.add(backArmPivot);
 
-      // Передняя рука с мечом (слой спереди)
+      // Передняя рука с мечом
       const frontArmPivot = new THREE.Group();
-      frontArmPivot.position.set(torsoW * 0.35, torsoH * 0.3, 0.04);
-      const frontArmMesh = createPivotMesh(armW, armH, warriorMats.arm1, 'top');
+      frontArmPivot.position.set(torsoW * 0.28, torsoH * 0.25, 0.06);
+      const frontArmMesh = createPivotMesh(armW, armH, warriorMats.armFront, 'top');
       frontArmPivot.add(frontArmMesh);
 
-      // Меч в руке
-      const swordH = WARRIOR_HEIGHT * 0.58;
-      const swordW = swordH * 0.32;
+      // Меч в кулаке
+      const swordH = WARRIOR_TOTAL_H * 0.54;
+      const swordW = swordH * 0.3;
       const sword = createPivotMesh(swordW, swordH, warriorMats.sword, 'bottom');
-      sword.position.set(armW * 0.3, -armH * 0.85, 0.01);
-      sword.rotation.z = -Math.PI / 4;
+      sword.position.set(armW * 0.3, -armH * 0.85, 0.02);
+      sword.rotation.z = -Math.PI / 5;
       frontArmPivot.add(sword);
 
       torso.add(frontArmPivot);
@@ -280,23 +310,24 @@ export const GameStage: React.FC = () => {
           backLeg: backLegPivot,
           sword
         },
-        speed: 1.1,
-        walkTimer: Math.random() * 10
+        speed: 1.25,
+        walkTimer: 0
       });
     };
 
+    // Спавн слева из нашей базы
     spawnWarriorRef.current = () => {
-      createWarrior(WORLD_TOTAL_WIDTH / 2 - 120);
+      createWarrior(-WORLD_TOTAL_WIDTH / 2 + 130);
     };
 
     // ==========================================
-    // 8. СВАЙПЫ КАМЕРЫ
+    // 8. СВАЙПЫ КАМЕРЫ (СТАРТ СЛЕВА У НАШЕЙ БАЗЫ)
     // ==========================================
     const halfWorld = WORLD_TOTAL_WIDTH / 2;
-    const minCamX = -halfWorld + viewWidth / 2;
-    const maxCamX = halfWorld - viewWidth / 2;
+    const minCamX = -halfWorld + viewWidth / 2; // Левый предел (наша башня)
+    const maxCamX = halfWorld - viewWidth / 2;  // Правый предел (башня врага)
 
-    const startCamX = maxCamX;
+    const startCamX = minCamX; // Стартуем СЛЕВА
     camera.position.x = startCamX;
     camera.position.y = 0;
 
@@ -346,7 +377,7 @@ export const GameStage: React.FC = () => {
     window.addEventListener('resize', handleResize);
 
     // ==========================================
-    // 9. АНИМАЦИОННЫЙ ЦИКЛ (СИНХРОННЫЙ ШАГ РЫЦАРЯ)
+    // 9. АНИМАЦИОННЫЙ ЦИКЛ (ЛОГИКА КОМАНД СТИКВАРА)
     // ==========================================
     let animId: number;
     let lastTime = performance.now();
@@ -360,22 +391,65 @@ export const GameStage: React.FC = () => {
 
       camera.position.x += (targetX - camera.position.x) * 0.12;
 
+      const curCmd = commandRef.current;
+      const stagingX = -WORLD_TOTAL_WIDTH / 2 + 550; // Зона сбора у базы
+      const retreatX = -WORLD_TOTAL_WIDTH / 2 + 150; // Отступление за башню
+      const enemyBaseX = WORLD_TOTAL_WIDTH / 2 - 150;
+
       for (let i = 0; i < units.length; i++) {
         const u = units[i];
-        u.group.position.x -= u.speed;
+        let isMoving = false;
 
-        u.walkTimer += delta * 7.5;
-        const swing = Math.sin(u.walkTimer);
+        if (curCmd === 'attack') {
+          // Идем направо к замку врага
+          if (u.group.position.x < enemyBaseX) {
+            u.group.position.x += u.speed;
+            u.group.scale.x = 1; // Смотрим вправо
+            isMoving = true;
+          }
+        } else if (curCmd === 'defend') {
+          // Идем в зону сбора и держим оборону
+          const dist = stagingX - u.group.position.x;
+          if (Math.abs(dist) > 10) {
+            u.group.position.x += Math.sign(dist) * u.speed;
+            u.group.scale.x = Math.sign(dist);
+            isMoving = true;
+          } else {
+            u.group.scale.x = 1; // Стоим лицом к врагу
+          }
+        } else if (curCmd === 'retreat') {
+          // Бежим назад к башне
+          if (u.group.position.x > retreatX) {
+            u.group.position.x -= u.speed * 1.3;
+            u.group.scale.x = -1; // Смотрим влево (бежим назад)
+            isMoving = true;
+          }
+        }
 
-        u.parts.frontLeg.rotation.z = swing * 0.55;
-        u.parts.backLeg.rotation.z = -swing * 0.55;
+        // Анимация шага или стойки
+        if (isMoving) {
+          u.walkTimer += delta * 7.5;
+          const swing = Math.sin(u.walkTimer);
 
-        u.parts.frontArm.rotation.z = -swing * 0.45;
-        u.parts.backArm.rotation.z = swing * 0.45;
+          u.parts.frontLeg.rotation.z = swing * 0.55;
+          u.parts.backLeg.rotation.z = -swing * 0.55;
+          u.parts.frontArm.rotation.z = -swing * 0.45;
+          u.parts.backArm.rotation.z = swing * 0.45;
 
-        u.parts.torso.position.y = WARRIOR_HEIGHT * 0.45 + Math.abs(swing) * 2;
-        u.parts.head.rotation.z = Math.sin(u.walkTimer * 0.5) * 0.08;
-        u.parts.sword.rotation.z = -Math.PI / 4 + swing * 0.12;
+          u.parts.torso.position.y = WARRIOR_TOTAL_H * 0.38 + Math.abs(swing) * 2;
+          u.parts.head.rotation.z = Math.sin(u.walkTimer * 0.5) * 0.06;
+          u.parts.sword.rotation.z = -Math.PI / 5 + swing * 0.12;
+        } else {
+          // Плавное дыхание в боевой стойке (Idle)
+          const breathe = Math.sin(now * 0.003 + i);
+          u.parts.frontLeg.rotation.z = 0.05;
+          u.parts.backLeg.rotation.z = -0.05;
+          u.parts.frontArm.rotation.z = -0.1 + breathe * 0.04;
+          u.parts.backArm.rotation.z = 0.1 - breathe * 0.04;
+          u.parts.torso.position.y = WARRIOR_TOTAL_H * 0.38 + breathe * 1;
+          u.parts.head.rotation.z = breathe * 0.03;
+          u.parts.sword.rotation.z = -Math.PI / 5 + breathe * 0.05;
+        }
       }
 
       renderer.render(scene, camera);
@@ -396,38 +470,136 @@ export const GameStage: React.FC = () => {
     };
   }, []);
 
+  const handleBuyWarrior = () => {
+    if (spawnCd > 0) return; // Кулдаун активен
+    setSpawnCd(8.0); // Запуск кулдауна 8 секунд
+  };
+
   return (
     <div style={styles.stageContainer}>
       <div ref={mountRef} style={{ width: '100%', height: '100%', touchAction: 'none' }} />
 
-      {/* Интерфейс призыва */}
-      <div style={styles.hudOverlay}>
+      {/* ==========================================
+          ВЕРХНИЙ HUD: ЗОЛОТО И КАРТОЧКИ ЮНИТОВ
+          ========================================== */}
+      <div style={styles.topHud}>
         <div className="hud-element" style={styles.goldCounter}>
           <span style={styles.coinIcon}>🪙</span>
           <span style={styles.goldAmount}>{gold}</span>
         </div>
 
         <div style={styles.summonRow}>
+          {/* 1. WARRIOR С КУЛДАУНОМ 8 СЕКУНД */}
           <button
             className="hud-element"
-            onClick={() => spawnWarriorRef.current()}
-            style={styles.unitCard}
+            onClick={handleBuyWarrior}
+            disabled={spawnCd > 0}
+            style={{
+              ...styles.unitCard,
+              filter: spawnCd > 0 ? 'grayscale(0.6)' : 'none'
+            }}
           >
-            <div style={styles.unitAvatar}>⚔️</div>
+            {/* Картинка из public/Warrior.png или запасная иконка */}
+            <img
+              src="/Warrior.png"
+              alt="Warrior"
+              style={styles.unitImg}
+              onError={(e) => {
+                (e.target as HTMLElement).style.display = 'none';
+              }}
+            />
             <span style={styles.unitName}>WARRIOR</span>
-            <span style={styles.unitCost}>0 🪙</span>
+            <span style={styles.unitCost}>{spawnCd > 0 ? `${spawnCd}s` : '0 🪙'}</span>
+
+            {/* Круговой/высотный прогресс-бар кулдауна */}
+            {spawnCd > 0 && (
+              <div
+                style={{
+                  ...styles.cdOverlay,
+                  height: `${(spawnCd / 8) * 100}%`
+                }}
+              />
+            )}
           </button>
 
+          {/* 2. ARCHER */}
           <button className="hud-element" style={{ ...styles.unitCard, ...styles.unitDisabled }}>
-            <div style={styles.unitAvatar}>🏹</div>
+            <img
+              src="/Archer.png"
+              alt="Archer"
+              style={styles.unitImg}
+              onError={(e) => {
+                (e.target as HTMLElement).style.display = 'none';
+              }}
+            />
             <span style={styles.unitName}>ARCHER</span>
             <span style={styles.unitCost}>0 🪙</span>
           </button>
 
+          {/* 3. KNIGHT */}
           <button className="hud-element" style={{ ...styles.unitCard, ...styles.unitDisabled }}>
-            <div style={styles.unitAvatar}>🛡️</div>
+            <img
+              src="/Knight.png"
+              alt="Knight"
+              style={styles.unitImg}
+              onError={(e) => {
+                (e.target as HTMLElement).style.display = 'none';
+              }}
+            />
             <span style={styles.unitName}>KNIGHT</span>
             <span style={styles.unitCost}>0 🪙</span>
+          </button>
+        </div>
+      </div>
+
+      {/* ==========================================
+          КОМАНДНЫЙ ПОЛУКРУГ STICK WAR (СПРАВА)
+          ========================================== */}
+      <div style={styles.commandCircleWrapper}>
+        <div style={styles.commandArc}>
+          {/* ВЕРХ: ОТСТУПЛЕНИЕ */}
+          <button
+            className="hud-element"
+            onClick={() => setCommand('retreat')}
+            style={{
+              ...styles.arcBtn,
+              backgroundColor: command === 'retreat' ? '#c62828' : 'rgba(25, 25, 25, 0.85)',
+              borderColor: command === 'retreat' ? '#ffffff' : '#555555',
+              transform: command === 'retreat' ? 'scale(1.1) translateX(-6px)' : 'none'
+            }}
+          >
+            <Flag size={20} color="#ffffff" />
+            <span style={styles.arcBtnLabel}>RETREAT</span>
+          </button>
+
+          {/* ЦЕНТР: ЗАЩИТА */}
+          <button
+            className="hud-element"
+            onClick={() => setCommand('defend')}
+            style={{
+              ...styles.arcBtn,
+              backgroundColor: command === 'defend' ? '#1565c0' : 'rgba(25, 25, 25, 0.85)',
+              borderColor: command === 'defend' ? '#ffffff' : '#555555',
+              transform: command === 'defend' ? 'scale(1.1) translateX(-8px)' : 'none'
+            }}
+          >
+            <Shield size={20} color="#ffffff" />
+            <span style={styles.arcBtnLabel}>DEFEND</span>
+          </button>
+
+          {/* НИЗ: АТАКА */}
+          <button
+            className="hud-element"
+            onClick={() => setCommand('attack')}
+            style={{
+              ...styles.arcBtn,
+              backgroundColor: command === 'attack' ? '#2e7d32' : 'rgba(25, 25, 25, 0.85)',
+              borderColor: command === 'attack' ? '#ffffff' : '#555555',
+              transform: command === 'attack' ? 'scale(1.1) translateX(-6px)' : 'none'
+            }}
+          >
+            <Swords size={20} color="#ffffff" />
+            <span style={styles.arcBtnLabel}>ATTACK</span>
           </button>
         </div>
       </div>
@@ -442,21 +614,20 @@ const styles: Record<string, React.CSSProperties> = {
     position: 'relative',
     overflow: 'hidden'
   },
-  hudOverlay: {
+  topHud: {
     position: 'absolute',
     top: '14px',
     left: '110px',
     zIndex: 100,
     display: 'flex',
     alignItems: 'center',
-    gap: '16px',
-    pointerEvents: 'auto'
+    gap: '16px'
   },
   goldCounter: {
     display: 'flex',
     alignItems: 'center',
     gap: '6px',
-    backgroundColor: 'rgba(20, 20, 20, 0.75)',
+    backgroundColor: 'rgba(20, 20, 20, 0.8)',
     border: '2px solid #5a4214',
     padding: '6px 14px',
     borderRadius: '12px'
@@ -475,11 +646,12 @@ const styles: Record<string, React.CSSProperties> = {
     gap: '8px'
   },
   unitCard: {
+    position: 'relative',
     width: '74px',
-    height: '68px',
+    height: '74px',
     backgroundColor: 'rgba(26, 12, 14, 0.85)',
     border: '2px solid #8e2424',
-    borderRadius: '10px',
+    borderRadius: '12px',
     display: 'flex',
     flexDirection: 'column',
     alignItems: 'center',
@@ -487,8 +659,8 @@ const styles: Record<string, React.CSSProperties> = {
     gap: '2px',
     cursor: 'pointer',
     touchAction: 'manipulation',
-    boxShadow: '0 4px 6px rgba(0,0,0,0.5)',
-    transition: 'transform 0.05s ease-out'
+    overflow: 'hidden',
+    padding: 0
   },
   unitDisabled: {
     opacity: 0.5,
@@ -496,9 +668,10 @@ const styles: Record<string, React.CSSProperties> = {
     borderColor: '#444444',
     backgroundColor: 'rgba(30, 30, 30, 0.7)'
   },
-  unitAvatar: {
-    fontSize: '20px',
-    lineHeight: 1
+  unitImg: {
+    width: '36px',
+    height: '36px',
+    objectFit: 'contain'
   },
   unitName: {
     color: '#ffffff',
@@ -510,5 +683,51 @@ const styles: Record<string, React.CSSProperties> = {
     color: '#ffd54f',
     fontSize: '10px',
     fontWeight: 800
+  },
+  cdOverlay: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.65)',
+    pointerEvents: 'none',
+    transition: 'height 0.05s linear'
+  },
+  // ПОЛУКРУГ STICK WAR СПРАВА
+  commandCircleWrapper: {
+    position: 'absolute',
+    right: '16px',
+    top: '50%',
+    transform: 'translateY(-50%)',
+    zIndex: 100,
+    display: 'flex',
+    alignItems: 'center'
+  },
+  commandArc: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '12px',
+    alignItems: 'flex-end'
+  },
+  arcBtn: {
+    width: '56px',
+    height: '56px',
+    borderRadius: '50%',
+    border: '2.5px solid #555555',
+    cursor: 'pointer',
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: '2px',
+    touchAction: 'manipulation',
+    boxShadow: '0 4px 10px rgba(0,0,0,0.6)',
+    transition: 'all 0.15s ease-out'
+  },
+  arcBtnLabel: {
+    color: '#ffffff',
+    fontSize: '8px',
+    fontWeight: 900,
+    letterSpacing: '0.5px'
   }
 };
