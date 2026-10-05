@@ -1,11 +1,28 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import * as THREE from 'three';
 
-const WORLD_TOTAL_WIDTH = 2105; // Длина игрового поля
-const PART_WIDTH = WORLD_TOTAL_WIDTH / 3; // Ширина каждой из 3 частей (~701.67px)
+const WORLD_TOTAL_WIDTH = 2105;
+const PART_WIDTH = WORLD_TOTAL_WIDTH / 3;
+
+interface Unit {
+  group: THREE.Group;
+  parts: {
+    torso: THREE.Mesh;
+    head: THREE.Mesh;
+    frontArm: THREE.Group;
+    backArm: THREE.Group;
+    frontLeg: THREE.Group;
+    backLeg: THREE.Group;
+    sword: THREE.Mesh;
+  };
+  speed: number;
+  walkTimer: number;
+}
 
 export const GameStage: React.FC = () => {
   const mountRef = useRef<HTMLDivElement>(null);
+  const [gold, setGold] = useState(100);
+  const spawnWarriorRef = useRef<() => void>(() => {});
 
   useEffect(() => {
     const container = mountRef.current;
@@ -40,19 +57,14 @@ export const GameStage: React.FC = () => {
     const textureLoader = new THREE.TextureLoader();
 
     // ==========================================
-    // 4. ПАНОРАМА ИЗ 3 ЧАСТЕЙ (СУММАРНО 2105 PX)
+    // 4. ПАНОРАМА ИЗ 3 ЧАСТЕЙ (2105 PX)
     // ==========================================
     const bgParts = ['/backpart1.png', '/backpart2.png', '/backpart3.png'];
-
     bgParts.forEach((src, idx) => {
-      // +0.5px перекрытия для исключения швов
       const geo = new THREE.PlaneGeometry(PART_WIDTH + 0.5, viewHeight);
       const mat = new THREE.MeshBasicMaterial({ color: '#222222' });
       const mesh = new THREE.Mesh(geo, mat);
-
-      // Раскладка по X: Part1 (-701.67), Part2 (0), Part3 (+701.67)
-      const posX = (idx - 1) * PART_WIDTH;
-      mesh.position.set(posX, 0, 0);
+      mesh.position.set((idx - 1) * PART_WIDTH, 0, 0);
       scene.add(mesh);
 
       textureLoader.load(src, (tex) => {
@@ -65,13 +77,13 @@ export const GameStage: React.FC = () => {
     });
 
     // ==========================================
-    // 5. БАШНИ ПО КРАЯМ ПОЛЯ 2105
+    // 5. БАШНИ ПО КРАЯМ ПОЛЯ
     // ==========================================
     const towerHeight = viewHeight * 0.65;
     const defaultTowerWidth = towerHeight * 0.55;
     const groundLevelY = -viewHeight / 2 + towerHeight / 2;
 
-    // 1. Наша башня (СПРАВА)
+    // Наша башня (справа)
     const playerTowerGeo = new THREE.PlaneGeometry(defaultTowerWidth, towerHeight);
     const playerTowerMat = new THREE.MeshBasicMaterial({ transparent: true, alphaTest: 0.05 });
     const playerTower = new THREE.Mesh(playerTowerGeo, playerTowerMat);
@@ -92,7 +104,7 @@ export const GameStage: React.FC = () => {
       }
     });
 
-    // 2. Башня врага (СЛЕВА)
+    // Вражеская башня (слева)
     const enemyTowerGeo = new THREE.PlaneGeometry(defaultTowerWidth, towerHeight);
     const enemyTowerMat = new THREE.MeshBasicMaterial({ transparent: true, alphaTest: 0.05 });
     const enemyTower = new THREE.Mesh(enemyTowerGeo, enemyTowerMat);
@@ -114,13 +126,177 @@ export const GameStage: React.FC = () => {
     });
 
     // ==========================================
-    // 6. СВАЙПЫ И ГРАНИЦЫ КАМЕРЫ
+    // 6. ЗАГРУЗЧИК ЧАСТЕЙ ТЕЛА ВОИНА (РИГ)
+    // ==========================================
+    const createPartTexture = (color: string, stroke: string) => {
+      const canvas = document.createElement('canvas');
+      canvas.width = 64;
+      canvas.height = 64;
+      const ctx = canvas.getContext('2d')!;
+      ctx.fillStyle = color;
+      ctx.fillRect(4, 4, 56, 56);
+      ctx.strokeStyle = stroke;
+      ctx.lineWidth = 6;
+      ctx.strokeRect(4, 4, 56, 56);
+      const tex = new THREE.CanvasTexture(canvas);
+      tex.magFilter = THREE.NearestFilter;
+      return tex;
+    };
+
+    const loadCharMat = (names: string[], fallbackColor: string) => {
+      const fallback = createPartTexture(fallbackColor, '#1b1b1b');
+      const mat = new THREE.MeshBasicMaterial({
+        map: fallback,
+        transparent: true,
+        alphaTest: 0.05
+      });
+
+      const paths = names.flatMap((name) => [
+        `/gameplay/characters/${name}.png`,
+        `/gameplay/npc/${name}.png`,
+        `/${name}.png`
+      ]);
+
+      const tryLoad = (idx: number) => {
+        if (idx >= paths.length) return;
+        const img = new Image();
+        img.crossOrigin = 'anonymous';
+        img.onload = () => {
+          const tex = new THREE.Texture(img);
+          tex.colorSpace = THREE.SRGBColorSpace;
+          tex.magFilter = THREE.NearestFilter;
+          tex.needsUpdate = true;
+          mat.map = tex;
+          mat.needsUpdate = true;
+        };
+        img.onerror = () => tryLoad(idx + 1);
+        img.src = paths[idx];
+      };
+      tryLoad(0);
+      return mat;
+    };
+
+    const warriorMats = {
+      torso: loadCharMat(['WTorso'], '#505663'),
+      head: loadCharMat(['Whead', 'WHead'], '#636b7b'),
+      arm1: loadCharMat(['WArm1'], '#505663'),
+      arm2: loadCharMat(['WArm2'], '#3b404a'),
+      leg1: loadCharMat(['WLeg1'], '#454a55'),
+      leg2: loadCharMat(['WLeg2'], '#32363e'),
+      sword: loadCharMat(['WSword'], '#d6dadf')
+    };
+
+    // Создание меша со смещенным центром вращения (пивотом)
+    const createPivotMesh = (w: number, h: number, mat: THREE.Material, pivotY: 'top' | 'center' | 'bottom') => {
+      const geo = new THREE.PlaneGeometry(w, h);
+      if (pivotY === 'top') {
+        geo.translate(0, -h / 2, 0); // Вращение вокруг верхнего сустава (плечо, бедро)
+      } else if (pivotY === 'bottom') {
+        geo.translate(0, h / 2, 0); // Вращение вокруг нижнего сустава
+      }
+      return new THREE.Mesh(geo, mat);
+    };
+
+    // ==========================================
+    // 7. СБОРКА И СПАВН ВОИНА (2 БЛОКА В ВЫСОТУ)
+    // ==========================================
+    const units: Unit[] = [];
+    const WARRIOR_HEIGHT = 65; // ~2 блока
+    const characterFloorY = -viewHeight / 2 + 50; // Линия земли под ногами
+
+    const createWarrior = (spawnX: number) => {
+      const root = new THREE.Group();
+      root.position.set(spawnX, characterFloorY, 5);
+      root.scale.set(-1, 1, 1); // Повернут лицом влево — на врага
+
+      // 1. Тело (центр)
+      const torsoH = WARRIOR_HEIGHT * 0.42;
+      const torsoW = torsoH * 0.85;
+      const torso = createPivotMesh(torsoW, torsoH, warriorMats.torso, 'center');
+      torso.position.set(0, WARRIOR_HEIGHT * 0.45, 0);
+      root.add(torso);
+
+      // 2. Голова (на плечах)
+      const headH = WARRIOR_HEIGHT * 0.36;
+      const headW = headH * 0.9;
+      const head = createPivotMesh(headW, headH, warriorMats.head, 'bottom');
+      head.position.set(0, torsoH / 2 - 2, 0.02);
+      torso.add(head);
+
+      // 3. Ноги (бедра крепятся к низу тела)
+      const legH = WARRIOR_HEIGHT * 0.38;
+      const legW = legH * 0.55;
+
+      // Задняя нога (слой позади)
+      const backLegPivot = new THREE.Group();
+      backLegPivot.position.set(-torsoW * 0.22, WARRIOR_HEIGHT * 0.32, -0.02);
+      const backLegMesh = createPivotMesh(legW, legH, warriorMats.leg2, 'top');
+      backLegPivot.add(backLegMesh);
+      root.add(backLegPivot);
+
+      // Передняя нога (слой спереди)
+      const frontLegPivot = new THREE.Group();
+      frontLegPivot.position.set(torsoW * 0.22, WARRIOR_HEIGHT * 0.32, 0.02);
+      const frontLegMesh = createPivotMesh(legW, legH, warriorMats.leg1, 'top');
+      frontLegPivot.add(frontLegMesh);
+      root.add(frontLegPivot);
+
+      // 4. Руки и меч (плечи крепятся к верху тела)
+      const armH = WARRIOR_HEIGHT * 0.34;
+      const armW = armH * 0.55;
+
+      // Задняя рука (слой позади)
+      const backArmPivot = new THREE.Group();
+      backArmPivot.position.set(-torsoW * 0.35, torsoH * 0.3, -0.03);
+      const backArmMesh = createPivotMesh(armW, armH, warriorMats.arm2, 'top');
+      backArmPivot.add(backArmMesh);
+      torso.add(backArmPivot);
+
+      // Передняя рука с мечом (слой спереди)
+      const frontArmPivot = new THREE.Group();
+      frontArmPivot.position.set(torsoW * 0.35, torsoH * 0.3, 0.04);
+      const frontArmMesh = createPivotMesh(armW, armH, warriorMats.arm1, 'top');
+      frontArmPivot.add(frontArmMesh);
+
+      // Меч в руке
+      const swordH = WARRIOR_HEIGHT * 0.58;
+      const swordW = swordH * 0.32;
+      const sword = createPivotMesh(swordW, swordH, warriorMats.sword, 'bottom');
+      sword.position.set(armW * 0.3, -armH * 0.85, 0.01);
+      sword.rotation.z = -Math.PI / 4; // Боевой наклон клинка
+      frontArmPivot.add(sword);
+
+      torso.add(frontArmPivot);
+      scene.add(root);
+
+      units.push({
+        group: root,
+        parts: {
+          torso,
+          head,
+          frontArm: frontArmPivot,
+          backArm: backArmPivot,
+          frontLeg: frontLegPivot,
+          backLeg: backLegPivot,
+          sword
+        },
+        speed: 1.1,
+        walkTimer: Math.random() * 10
+      });
+    };
+
+    // Привязываем спавн к кнопке HUD
+    spawnWarriorRef.current = () => {
+      createWarrior(WORLD_TOTAL_WIDTH / 2 - 120); // Рождается у нашей башни
+    };
+
+    // ==========================================
+    // 8. СВАЙПЫ КАМЕРЫ
     // ==========================================
     const halfWorld = WORLD_TOTAL_WIDTH / 2;
-    const minCamX = -halfWorld + viewWidth / 2; // Предел у башни врага
-    const maxCamX = halfWorld - viewWidth / 2;  // Предел у нашей башни
+    const minCamX = -halfWorld + viewWidth / 2;
+    const maxCamX = halfWorld - viewWidth / 2;
 
-    // Стартуем справа — у нашей башни
     const startCamX = maxCamX;
     camera.position.x = startCamX;
     camera.position.y = 0;
@@ -133,6 +309,8 @@ export const GameStage: React.FC = () => {
     const clamp = (val: number, min: number, max: number) => Math.max(min, Math.min(max, val));
 
     const onPointerDown = (e: PointerEvent) => {
+      // Игнорируем нажатия на кнопки меню призыва
+      if ((e.target as HTMLElement).closest('.hud-element')) return;
       isDragging = true;
       startPointerX = e.clientX;
       lastCamX = targetX;
@@ -153,7 +331,6 @@ export const GameStage: React.FC = () => {
     window.addEventListener('pointerup', onPointerUp);
     window.addEventListener('pointercancel', onPointerUp);
 
-    // Ресайз
     const handleResize = () => {
       const w = window.innerWidth;
       const h = window.innerHeight;
@@ -170,11 +347,49 @@ export const GameStage: React.FC = () => {
     };
     window.addEventListener('resize', handleResize);
 
-    // Цикл рендера
+    // ==========================================
+    // 9. АНИМАЦИОННЫЙ ЦИКЛ (СИНХРОННЫЙ ШАГ РЫЦАРЯ)
+    // ==========================================
     let animId: number;
+    let lastTime = performance.now();
+
     const animate = () => {
       animId = requestAnimationFrame(animate);
+
+      const now = performance.now();
+      const delta = (now - lastTime) / 1000;
+      lastTime = now;
+
+      // Плавная камера
       camera.position.x += (targetX - camera.position.x) * 0.12;
+
+      // Движение и скелетная анимация воинов
+      for (let i = 0; i < units.length; i++) {
+        const u = units[i];
+
+        // Движение вперед на врага (влево)
+        u.group.position.x -= u.speed;
+
+        // Таймер походки
+        u.walkTimer += delta * 7.5;
+        const swing = Math.sin(u.walkTimer);
+
+        // Размах ног (противофаза)
+        u.parts.frontLeg.rotation.z = swing * 0.55;
+        u.parts.backLeg.rotation.z = -swing * 0.55;
+
+        // Размах рук (противоположно ногам)
+        u.parts.frontArm.rotation.z = -swing * 0.45;
+        u.parts.backArm.rotation.z = swing * 0.45;
+
+        // Легкое подпрыгивание тела при шаге
+        u.parts.torso.position.y = WARRIOR_HEIGHT * 0.45 + Math.abs(swing) * 2;
+
+        // Покачивание головы и меча
+        u.parts.head.rotation.z = Math.sin(u.walkTimer * 0.5) * 0.08;
+        u.parts.sword.rotation.z = -Math.PI / 4 + swing * 0.12;
+      }
+
       renderer.render(scene, camera);
     };
     animate();
@@ -193,5 +408,126 @@ export const GameStage: React.FC = () => {
     };
   }, []);
 
-  return <div ref={mountRef} style={{ width: '100%', height: '100%', touchAction: 'none' }} />;
+  return (
+    <div style={styles.stageContainer}>
+      <div ref={mountRef} style={{ width: '100%', height: '100%', touchAction: 'none' }} />
+
+      {/* ==========================================
+          ИНТЕРФЕЙС ПРИЗЫВА ЮНИТОВ (STICK WAR STYLE)
+          ========================================== */}
+      <div style={styles.hudOverlay}>
+        {/* Счетчик золота */}
+        <div className="hud-element" style={styles.goldCounter}>
+          <span style={styles.coinIcon}>🪙</span>
+          <span style={styles.goldAmount}>{gold}</span>
+        </div>
+
+        {/* 3 карточки призыва в ряд */}
+        <div style={styles.summonRow}>
+          {/* 1. WARRIOR (АКТИВЕН, 0 МОНЕТ) */}
+          <button
+            className="hud-element"
+            onClick={() => spawnWarriorRef.current()}
+            style={styles.unitCard}
+          >
+            <div style={styles.unitAvatar}>⚔️</div>
+            <span style={styles.unitName}>WARRIOR</span>
+            <span style={styles.unitCost}>0 🪙</span>
+          </button>
+
+          {/* 2. ARCHER (ЗАГЛУШКА) */}
+          <button className="hud-element" style={{ ...styles.unitCard, ...styles.unitDisabled }}>
+            <div style={styles.unitAvatar}>🏹</div>
+            <span style={styles.unitName}>ARCHER</span>
+            <span style={styles.unitCost}>0 🪙</span>
+          </button>
+
+          {/* 3. KNIGHT (ЗАГЛУШКА) */}
+          <button className="hud-element" style={{ ...styles.unitCard, ...styles.unitDisabled }}>
+            <div style={styles.unitAvatar}>🛡️</div>
+            <span style={styles.unitName}>KNIGHT</span>
+            <span style={styles.unitCost}>0 🪙</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+const styles: Record<string, React.CSSProperties> = {
+  stageContainer: {
+    width: '100%',
+    height: '100%',
+    position: 'relative',
+    overflow: 'hidden'
+  },
+  hudOverlay: {
+    position: 'absolute',
+    top: '14px',
+    left: '110px', // Отступ от кнопки MENU
+    zIndex: 100,
+    display: 'flex',
+    alignItems: 'center',
+    gap: '16px',
+    pointerEvents: 'auto'
+  },
+  goldCounter: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '6px',
+    backgroundColor: 'rgba(20, 20, 20, 0.75)',
+    border: '2px solid #5a4214',
+    padding: '6px 14px',
+    borderRadius: '12px'
+  },
+  coinIcon: {
+    fontSize: '18px'
+  },
+  goldAmount: {
+    color: '#ffca28',
+    fontFamily: '"Rubik", "Arial Black", sans-serif',
+    fontSize: '16px',
+    fontWeight: 900
+  },
+  summonRow: {
+    display: 'flex',
+    gap: '8px'
+  },
+  unitCard: {
+    width: '74px',
+    height: '68px',
+    backgroundColor: 'rgba(26, 12, 14, 0.85)',
+    border: '2px solid #8e2424',
+    borderRadius: '10px',
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: '2px',
+    cursor: 'pointer',
+    touchAction: 'manipulation',
+    boxShadow: '0 4px 6px rgba(0,0,0,0.5)',
+    transition: 'transform 0.05s ease-out'
+  },
+  unitDisabled: {
+    opacity: 0.5,
+    cursor: 'not-allowed',
+    borderColor: '#444444',
+    backgroundColor: 'rgba(30, 30, 30, 0.7)'
+  },
+  unitAvatar: {
+    fontSize: '20px',
+    lineHeight: 1
+  },
+  unitName: {
+    color: '#ffffff',
+    fontSize: '10px',
+    fontWeight: 900,
+    letterSpacing: '0.5px'
+  },
+  unitCost: {
+    color: '#ffd54f',
+    fontSize: '10px',
+    fontWeight: 800
+  }
 };
