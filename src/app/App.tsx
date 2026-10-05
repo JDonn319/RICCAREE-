@@ -25,7 +25,7 @@ const LandscapeGuard: React.FC<{ isPortrait: boolean }> = ({ isPortrait }) => {
 };
 
 // ==========================================
-// 2. ЭКРАН ЗАГРУЗКИ (ПРЕДЗАГРУЗКА ВСЕХ КНОПОК)
+// 2. ЭКРАН ЗАГРУЗКИ
 // ==========================================
 const LoadingScreen: React.FC<{ onLoaded: () => void; isPortrait: boolean }> = ({ onLoaded, isPortrait }) => {
   const [progress, setProgress] = useState(0);
@@ -40,8 +40,7 @@ const LoadingScreen: React.FC<{ onLoaded: () => void; isPortrait: boolean }> = (
       '/shop.png',
       '/chests.png',
       '/solo.png',
-      '/online.png',
-      '/zombie.png'
+      '/duo.png'
     ];
 
     assets.forEach((src) => {
@@ -88,7 +87,7 @@ const LoadingScreen: React.FC<{ onLoaded: () => void; isPortrait: boolean }> = (
 };
 
 // ==========================================
-// 3. ЧИСТАЯ КНОПКА (ФИКС РАЗМЕРА + ТАП БЕЗ СВЕТА)
+// 3. БАЗОВАЯ КНОПКА ГЛАВНОГО МЕНЮ
 // ==========================================
 const MenuButton: React.FC<{ src: string; alt: string; onClick?: () => void }> = ({ src, alt, onClick }) => {
   const [pressed, setPressed] = useState(false);
@@ -104,7 +103,7 @@ const MenuButton: React.FC<{ src: string; alt: string; onClick?: () => void }> =
       onPointerCancel={() => setPressed(false)}
       style={{
         ...styles.btn,
-        transform: pressed ? 'translateY(2px) scale(0.97)' : 'none'
+        transform: pressed ? 'translateY(3px) scale(0.97)' : 'none'
       }}
     >
       <img src={src} alt={alt} style={styles.btnImg} draggable={false} />
@@ -113,71 +112,102 @@ const MenuButton: React.FC<{ src: string; alt: string; onClick?: () => void }> =
 };
 
 // ==========================================
-// 4. МЕНЮ С ПЛАВНЫМ ПЕРЕКЛЮЧЕНИЕМ
+// 4. ИНТЕРАКТИВНАЯ ПОЛОВИНКА РЕЖИМА (SOLO / DUO)
 // ==========================================
-type MenuTab = 'main' | 'modes';
-
-const MainMenu: React.FC = () => {
-  const [tab, setTab] = useState<MenuTab>('main');
-  const [isTransitioning, setIsTransitioning] = useState(false);
-
-  const switchTab = (targetTab: MenuTab) => {
-    setIsTransitioning(true);
-    setTimeout(() => {
-      setTab(targetTab);
-      setIsTransitioning(false);
-    }, 180); // Длительность плавного затухания
-  };
+const ModeCurtainHalf: React.FC<{
+  side: 'left' | 'right';
+  imgSrc: string;
+  alt: string;
+  isOpen: boolean;
+  onSelect: () => void;
+}> = ({ side, imgSrc, alt, isOpen, onSelect }) => {
+  const [pressed, setPressed] = useState(false);
 
   return (
-    <div style={styles.menuContainer}>
-      <img src="/MainMenuBackground.png" alt="BG" style={styles.menuBg} draggable={false} />
-      
-      {/* Кнопка "Назад", если мы в выборе режимов */}
-      {tab === 'modes' && (
-        <button 
-          onClick={() => switchTab('main')} 
-          style={styles.backBtn}
-        >
-          ← BACK
-        </button>
-      )}
-
-      {/* Центральный блок с плавной анимацией */}
-      <div 
+    <div
+      onPointerDown={() => setPressed(true)}
+      onPointerUp={() => {
+        setPressed(false);
+        onSelect();
+      }}
+      onPointerLeave={() => setPressed(false)}
+      onPointerCancel={() => setPressed(false)}
+      style={{
+        ...styles.curtainHalf,
+        left: side === 'left' ? 0 : '50%',
+        borderRight: side === 'left' ? '2px solid #140304' : 'none',
+        borderLeft: side === 'right' ? '2px solid #140304' : 'none',
+        transform: isOpen ? 'translateY(0)' : 'translateY(-100%)',
+        backgroundColor: side === 'left' ? '#180405' : '#120304' // темный благородный фон створок
+      }}
+    >
+      <img
+        src={imgSrc}
+        alt={alt}
         style={{
-          ...styles.centerBlock,
-          opacity: isTransitioning ? 0 : 1,
-          transform: isTransitioning ? 'scale(0.98)' : 'scale(1)',
-          transition: 'opacity 0.18s ease-out, transform 0.18s ease-out'
+          ...styles.modeImg,
+          transform: pressed ? 'scale(0.95)' : 'scale(1)'
         }}
-      >
-        <img src="/RiccarLogo.png" alt="RICAREE" style={styles.menuLogo} draggable={false} />
-
-        {/* 1. ГЛАВНЫЕ КНОПКИ */}
-        {tab === 'main' && (
-          <div style={styles.btnStack}>
-            <MenuButton src="/play.png" alt="PLAY" onClick={() => switchTab('modes')} />
-            <MenuButton src="/shop.png" alt="SHOP" />
-            <MenuButton src="/chests.png" alt="CHESTS" />
-          </div>
-        )}
-
-        {/* 2. РЕЖИМЫ ИГРЫ (SOLO, ONLINE, ZOMBIE) */}
-        {tab === 'modes' && (
-          <div style={styles.btnStack}>
-            <MenuButton src="/solo.png" alt="SOLO" />
-            <MenuButton src="/online.png" alt="ONLINE" />
-            <MenuButton src="/zombie.png" alt="ZOMBIE" />
-          </div>
-        )}
-      </div>
+        draggable={false}
+      />
     </div>
   );
 };
 
 // ==========================================
-// 5. APP ROOT
+// 5. ГЛАВНОЕ МЕНЮ С ВЫЕЗЖАЮЩИМИ СТВОРКАМИ
+// ==========================================
+const MainMenu: React.FC = () => {
+  const [modesOpen, setModesOpen] = useState(false);
+
+  return (
+    <div style={styles.menuContainer}>
+      <img src="/MainMenuBackground.png" alt="BG" style={styles.menuBg} draggable={false} />
+      
+      {/* Центр главного экрана */}
+      <div style={styles.centerBlock}>
+        <img src="/RiccarLogo.png" alt="RICAREE" style={styles.menuLogo} draggable={false} />
+
+        <div style={styles.btnStack}>
+          <MenuButton src="/play.png" alt="PLAY" onClick={() => setModesOpen(true)} />
+          <MenuButton src="/shop.png" alt="SHOP" />
+          <MenuButton src="/chests.png" alt="CHESTS" />
+        </div>
+      </div>
+
+      {/* КНОПКА ЗАКРЫТИЯ СТВОРОК ВЫБОРА РЕЖИМА */}
+      {modesOpen && (
+        <button
+          onClick={() => setModesOpen(false)}
+          style={styles.closeModesBtn}
+        >
+          ✕ BACK
+        </button>
+      )}
+
+      {/* ЛЕВАЯ СТВОРКА: DUO */}
+      <ModeCurtainHalf
+        side="left"
+        imgSrc="/duo.png"
+        alt="DUO"
+        isOpen={modesOpen}
+        onSelect={() => console.log('DUO SELECTED')}
+      />
+
+      {/* ПРАВАЯ СТВОРКА: SOLO */}
+      <ModeCurtainHalf
+        side="right"
+        imgSrc="/solo.png"
+        alt="SOLO"
+        isOpen={modesOpen}
+        onSelect={() => console.log('SOLO SELECTED')}
+      />
+    </div>
+  );
+};
+
+// ==========================================
+// 6. APP ROOT
 // ==========================================
 type ScreenState = 'loading' | 'menu' | 'battle';
 
@@ -230,7 +260,7 @@ const App: React.FC = () => {
 };
 
 // ==========================================
-// СТИЛИ (ЖЕСТКИЙ ФИКС ВЫСОТЫ КНОПОК)
+// СТИЛИ
 // ==========================================
 const styles: Record<string, React.CSSProperties> = {
   root: {
@@ -323,7 +353,7 @@ const styles: Record<string, React.CSSProperties> = {
     backgroundColor: '#b81e18',
     transition: 'width 0.08s linear'
   },
-  // Меню
+  // Menu
   menuContainer: {
     position: 'relative',
     width: '100vw',
@@ -340,21 +370,6 @@ const styles: Record<string, React.CSSProperties> = {
     height: '100%',
     objectFit: 'cover',
     pointerEvents: 'none'
-  },
-  backBtn: {
-    position: 'absolute',
-    top: '14px',
-    left: '16px',
-    zIndex: 30,
-    color: '#ffffff',
-    fontFamily: '"Rubik", "Arial Black", sans-serif',
-    fontSize: '14px',
-    fontWeight: 900,
-    letterSpacing: '1px',
-    padding: '6px 12px',
-    backgroundColor: 'rgba(0, 0, 0, 0.45)',
-    borderRadius: '8px',
-    cursor: 'pointer'
   },
   centerBlock: {
     position: 'relative',
@@ -379,7 +394,6 @@ const styles: Record<string, React.CSSProperties> = {
     gap: '6px',
     alignItems: 'center'
   },
-  // КНОПКА: СТРОГАЯ ФИКСАЦИЯ ВЫСОТЫ, ЧТОБЫ НЕ СЛЕТАЛА
   btn: {
     background: 'none',
     border: 'none',
@@ -393,12 +407,52 @@ const styles: Record<string, React.CSSProperties> = {
     transition: 'transform 0.05s ease-out'
   },
   btnImg: {
-    height: '38px',          // Фиксированная высота — кнопки всегда компактные
-    maxHeight: '9.5vh',      // Защита для узких экранов
-    width: 'auto',           // Ширина пропорциональна
-    maxWidth: '190px',       // Не дает раздуваться шире меры
+    height: '38px',
+    maxHeight: '9.5vh',
+    width: 'auto',
+    maxWidth: '190px',
     objectFit: 'contain',
     pointerEvents: 'none'
+  },
+  // ВЫЕЗЖАЮЩИЕ СТВОРКИ (50% ШИРИНЫ КАЖДАЯ)
+  curtainHalf: {
+    position: 'absolute',
+    top: 0,
+    width: '50%',
+    height: '100%',
+    zIndex: 40,
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    cursor: 'pointer',
+    touchAction: 'manipulation',
+    // Плавная физика выезда сверху вниз
+    transition: 'transform 0.38s cubic-bezier(0.16, 1, 0.3, 1)'
+  },
+  modeImg: {
+    width: '32vw',
+    maxWidth: '240px',
+    height: 'auto',
+    maxHeight: '45vh',
+    objectFit: 'contain',
+    pointerEvents: 'none',
+    transition: 'transform 0.08s ease-out'
+  },
+  closeModesBtn: {
+    position: 'absolute',
+    top: '16px',
+    left: '20px',
+    zIndex: 60,
+    color: '#ffffff',
+    fontFamily: '"Rubik", -apple-system, sans-serif',
+    fontSize: '13px',
+    fontWeight: 900,
+    letterSpacing: '1px',
+    padding: '8px 14px',
+    backgroundColor: '#000000',
+    borderRadius: '8px',
+    border: '1.5px solid #333333',
+    cursor: 'pointer'
   }
 };
 
